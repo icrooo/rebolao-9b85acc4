@@ -209,7 +209,7 @@ export default function AuthPage() {
             <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4">
               {!isLogin && (
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Como você quer ser chamado?</label>
                   <Input
                     value={name}
                     onChange={e => setName(e.target.value)}
