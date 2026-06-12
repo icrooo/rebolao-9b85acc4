@@ -78,9 +78,11 @@ export default function AdminPage() {
   };
 
   const approveUser = async (userId: string, approve: boolean) => {
-    const { error } = await supabase.from('profiles').update({ is_approved: approve }).eq('user_id', userId);
+    const { error } = approve
+      ? await supabase.rpc('admin_approve_user', { p_user_id: userId })
+      : await supabase.rpc('admin_unapprove_user', { p_user_id: userId });
     if (error) { toast.error(error.message); return; }
-    toast.success(approve ? 'Usuário aprovado!' : 'Usuário bloqueado.');
+    toast.success(approve ? 'Usuário aprovado! Penalidades de jogos passados aplicadas.' : 'Usuário bloqueado.');
     setProfiles(prev => prev.map(p => p.user_id === userId ? { ...p, is_approved: approve } : p));
   };
 

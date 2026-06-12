@@ -296,6 +296,7 @@ export type Database = {
         Args: { p_delta: number; p_field: string; p_match_id: string }
         Returns: undefined
       }
+      admin_approve_user: { Args: { p_user_id: string }; Returns: undefined }
       admin_finish_match: { Args: { p_match_id: string }; Returns: undefined }
       admin_get_profiles: {
         Args: never
@@ -310,6 +311,7 @@ export type Database = {
       }
       admin_restart_match: { Args: { p_match_id: string }; Returns: undefined }
       admin_start_match: { Args: { p_match_id: string }; Returns: undefined }
+      admin_unapprove_user: { Args: { p_user_id: string }; Returns: undefined }
       calculate_live_scores: {
         Args: { p_match_id: string }
         Returns: undefined
