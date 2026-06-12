@@ -157,7 +157,7 @@ export default function AllPredictionsPage() {
             <table className="text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-20 text-left py-2 pr-1 font-medium text-muted-foreground min-w-[100px] bg-background">Como você quer ser chamado?</th>
+                  <th className="sticky left-0 z-20 text-left py-2 pr-1 font-medium text-muted-foreground min-w-[100px] bg-background">Nome</th>
                   {visibleMatches.map(m => (
                     <th key={m.id} className="text-center px-0.5 py-2 font-normal">
                       <div className="text-[9px] text-muted-foreground whitespace-nowrap">
