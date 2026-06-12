@@ -24,22 +24,38 @@ export default function AllPredictionsPage() {
   const [loading, setLoading] = useState(true);
   const [phaseFilter, setPhaseFilter] = useState<'grupos' | 'mata-mata'>('grupos');
 
+  const fetchAllRows = async <T,>(builder: () => any): Promise<T[]> => {
+    const pageSize = 1000;
+    const all: T[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await builder().range(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as T[];
+      all.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  };
+
   const fetchAll = async () => {
-    const [profRes, matchRes, predRes, scoreRes] = await Promise.all([
-      supabase.from('profiles').select('user_id, name').eq('is_approved', true),
-      supabase.from('matches').select('id, home_team, away_team, match_datetime, is_finished, is_started, home_score, away_score, group_name').order('match_datetime'),
-      supabase.from('predictions').select('user_id, match_id, home_score_pred, away_score_pred'),
-      supabase.from('scores').select('user_id, match_id, points'),
-    ]);
-    if (profRes.error) toast.error(profRes.error.message);
-    if (matchRes.error) toast.error(matchRes.error.message);
-    if (predRes.error) toast.error(predRes.error.message);
-    if (scoreRes.error) toast.error(scoreRes.error.message);
-    if (profRes.data) setProfiles(profRes.data);
-    if (matchRes.data) setMatches(matchRes.data as Match[]);
-    if (predRes.data) setPredictions(predRes.data);
-    if (scoreRes.data) setScores(scoreRes.data);
-    setLoading(false);
+    try {
+      const [profData, matchData, predData, scoreData] = await Promise.all([
+        fetchAllRows<Profile>(() => supabase.from('profiles').select('user_id, name').eq('is_approved', true)),
+        fetchAllRows<Match>(() => supabase.from('matches').select('id, home_team, away_team, match_datetime, is_finished, is_started, home_score, away_score, group_name').order('match_datetime')),
+        fetchAllRows<Prediction>(() => supabase.from('predictions').select('user_id, match_id, home_score_pred, away_score_pred')),
+        fetchAllRows<Score>(() => supabase.from('scores').select('user_id, match_id, points')),
+      ]);
+      setProfiles(profData);
+      setMatches(matchData as Match[]);
+      setPredictions(predData);
+      setScores(scoreData);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Erro ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchAll(); }, []);
