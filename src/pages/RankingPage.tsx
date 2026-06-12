@@ -114,41 +114,34 @@ export default function RankingPage() {
       return;
     }
 
-    // Tab geral - fetch current (live) and finished-only baseline in parallel
-    const [currentRes, finishedRes] = await Promise.all([
-      supabase.rpc('get_ranking', { p_date: null, p_group_id: groupId ?? null }),
-      supabase.rpc('get_ranking', { p_date: null, p_group_id: groupId ?? null, p_only_finished: true }),
-    ]);
-    if (currentRes.error) { toast.error(currentRes.error.message); if (!silent) setLoading(false); return; }
-    const currentData = currentRes.data;
-    if (!currentData || currentData.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
-
-    const finishedPositions = new Map<string, number>();
-    (finishedRes.data ?? []).forEach((r) => {
-      finishedPositions.set(r.out_user_id, r.out_position);
+    // Tab geral - single RPC com variação calculada via snapshot
+    const { data, error } = await supabase.rpc('get_ranking_with_change', {
+      p_group_id: groupId ?? null,
     });
+    if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
+    if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
 
-    const entries: RankingEntry[] = currentData.map((r) => {
-      const baseline = finishedPositions.get(r.out_user_id);
-      // positive = subiu (foi de posição maior para menor); negative = caiu
-      const change = baseline != null ? baseline - r.out_position : null;
-      return {
-        user_id: r.out_user_id,
-        name: r.out_name,
-        total_points: Number(r.out_total_points),
-        exact_count: Number(r.out_exact_count),
-        partial_count: Number(r.out_partial_count),
-        negative_count: Number(r.out_negative_count),
-        missed_count: Number(r.out_missed_count),
-        position: r.out_position,
-        positionChange: change,
-      };
-    });
+    // Variação só faz sentido no ranking geral global (sem filtro de grupo)
+    const showChange = !groupId;
+
+    const entries: RankingEntry[] = data.map((r: any) => ({
+      user_id: r.out_user_id,
+      name: r.out_name,
+      total_points: Number(r.out_total_points),
+      exact_count: Number(r.out_exact_count),
+      partial_count: Number(r.out_partial_count),
+      negative_count: Number(r.out_negative_count),
+      missed_count: Number(r.out_missed_count),
+      position: r.out_position,
+      positionChange: showChange ? r.out_position_change : null,
+    }));
+
 
     setRanking(entries);
     if (!silent) setLoading(false);
     await refreshLastUpdated();
   };
+
 
   const refreshLastUpdated = async () => {
     const { data } = await supabase
