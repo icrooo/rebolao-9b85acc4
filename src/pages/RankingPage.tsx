@@ -121,6 +121,9 @@ export default function RankingPage() {
     if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
     if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
 
+    // Variação só faz sentido no ranking geral global (sem filtro de grupo)
+    const showChange = !groupId;
+
     const entries: RankingEntry[] = data.map((r: any) => ({
       user_id: r.out_user_id,
       name: r.out_name,
@@ -130,8 +133,9 @@ export default function RankingPage() {
       negative_count: Number(r.out_negative_count),
       missed_count: Number(r.out_missed_count),
       position: r.out_position,
-      positionChange: r.out_position_change,
+      positionChange: showChange ? r.out_position_change : null,
     }));
+
 
     setRanking(entries);
     if (!silent) setLoading(false);
