@@ -88,7 +88,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <LogOut className="h-5 w-5" />
               </button>
             </div>
-            <span className="text-[9px] text-muted-foreground/60 -mt-0.5 mr-1">v. 1.0 beta</span>
+            <span className="text-[9px] text-muted-foreground/60 -mt-0.5 mr-1">v. 1.1 beta</span>
           </div>
         </div>
       </header>
