@@ -187,6 +187,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ranking_position_state: {
+        Row: {
+          current_position: number | null
+          previous_position: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_position?: number | null
+          previous_position?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_position?: number | null
+          previous_position?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scores: {
         Row: {
           id: string
@@ -315,6 +336,20 @@ export type Database = {
           out_user_id: string
         }[]
       }
+      get_ranking_with_change: {
+        Args: { p_group_id?: string }
+        Returns: {
+          out_exact_count: number
+          out_missed_count: number
+          out_name: string
+          out_negative_count: number
+          out_partial_count: number
+          out_position: number
+          out_position_change: number
+          out_total_points: number
+          out_user_id: string
+        }[]
+      }
       get_user_rank: {
         Args: { p_user_id: string }
         Returns: {
@@ -330,6 +365,7 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      refresh_ranking_state: { Args: never; Returns: undefined }
       schedule_match_snapshot: {
         Args: { p_match_id: string }
         Returns: undefined
