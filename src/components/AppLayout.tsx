@@ -33,29 +33,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    fetchRank();
-
-    const channel = supabase
-      .channel('rank-header')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, () => {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fetchRank(), 600);
-      })
-      .subscribe();
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
-    };
+    // Header rank is fetched on mount/navigation only — no realtime subscription.
+    // This avoids ~hundreds of get_ranking() calls/day per online user.
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_user_rank', { p_user_id: user.id });
+      if (cancelled || error || !data || data.length === 0) return;
+      const row = data[0];
+      setRank({ position: row.user_position, points: Number(row.total_points) });
+    })();
+    return () => { cancelled = true; };
   }, [user]);
-
-  const fetchRank = async () => {
-    if (!user) return;
-    const { data, error } = await supabase.rpc('get_user_rank', { p_user_id: user.id });
-    if (error || !data || data.length === 0) return;
-    const row = data[0];
-    setRank({ position: row.user_position, points: Number(row.total_points) });
-  };
 
   return (
     <div className="min-h-screen pb-20">

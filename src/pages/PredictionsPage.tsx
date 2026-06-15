@@ -251,10 +251,13 @@ export default function PredictionsPage() {
   };
 
   const fetchRanking = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_ranking', {});
+    // Reads from cached ranking table instead of calling expensive get_ranking() RPC.
+    const { data, error } = await supabase
+      .from('ranking_cache')
+      .select('user_id, position');
     if (error) return;
     const map = new Map<string, number>();
-    (data ?? []).forEach((r) => map.set(r.out_user_id, r.out_position));
+    (data ?? []).forEach((r) => map.set(r.user_id, r.position));
     setPositionByUser(map);
   }, []);
 
@@ -332,7 +335,8 @@ export default function PredictionsPage() {
   useEffect(() => {
     const debouncedFetchScores = () => {
       if (scoresDebounceRef.current) clearTimeout(scoresDebounceRef.current);
-      scoresDebounceRef.current = setTimeout(() => { fetchScores(); }, 600);
+      // 3s debounce to coalesce bursts during live matches and reduce DB I/O
+      scoresDebounceRef.current = setTimeout(() => { fetchScores(); }, 3000);
     };
 
     const channel = supabase

@@ -187,6 +187,42 @@ export type Database = {
         }
         Relationships: []
       }
+      ranking_cache: {
+        Row: {
+          exact_count: number
+          missed_count: number
+          name: string
+          negative_count: number
+          partial_count: number
+          position: number
+          total_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          exact_count?: number
+          missed_count?: number
+          name: string
+          negative_count?: number
+          partial_count?: number
+          position: number
+          total_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          exact_count?: number
+          missed_count?: number
+          name?: string
+          negative_count?: number
+          partial_count?: number
+          position?: number
+          total_points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ranking_position_state: {
         Row: {
           current_position: number | null
