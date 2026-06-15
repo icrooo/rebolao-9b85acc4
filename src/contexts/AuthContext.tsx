@@ -102,11 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const fetchProfile = async () => {
       try {
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await withTimeout(supabase
           .from('profiles')
           .select('user_id, name, is_approved')
           .eq('user_id', user.id)
-          .single();
+          .single(), 7000);
 
         if (cancelled) return;
 
@@ -117,10 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile({ name: profileData.name, is_approved: profileData.is_approved, user_id: profileData.user_id });
         }
 
-        const { data: roleData } = await supabase
+        const { data: roleData } = await withTimeout(supabase
           .from('user_roles')
           .select('role')
-          .eq('user_id', user.id);
+          .eq('user_id', user.id), 7000);
 
         if (cancelled) return;
 
