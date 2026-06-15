@@ -335,7 +335,8 @@ export default function PredictionsPage() {
   useEffect(() => {
     const debouncedFetchScores = () => {
       if (scoresDebounceRef.current) clearTimeout(scoresDebounceRef.current);
-      scoresDebounceRef.current = setTimeout(() => { fetchScores(); }, 600);
+      // 3s debounce to coalesce bursts during live matches and reduce DB I/O
+      scoresDebounceRef.current = setTimeout(() => { fetchScores(); }, 3000);
     };
 
     const channel = supabase
