@@ -8,6 +8,17 @@ import { toast } from 'sonner';
 import { Loader2, Eye, EyeOff, Moon, Sun, Lock, Trophy as TrophyIcon, CircleHelp } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+const AUTH_REQUEST_TIMEOUT_MS = 12000;
+
+const withAuthTimeout = async <T,>(promise: PromiseLike<T>, message: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), AUTH_REQUEST_TIMEOUT_MS);
+    }),
+  ]);
+};
+
 function useTheme() {
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
@@ -119,15 +130,21 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withAuthTimeout(
+          supabase.auth.signInWithPassword({ email, password }),
+          'O login demorou demais para responder. Tente novamente em alguns instantes.'
+        );
         if (error) throw error;
         toast.success('Login realizado!');
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name } },
-        });
+        const { error } = await withAuthTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name } },
+          }),
+          'O cadastro demorou demais para responder. Tente novamente em alguns instantes.'
+        );
         if (error) throw error;
         toast.success('Cadastro realizado! Aguarde aprovação do administrador.');
       }
@@ -142,9 +159,12 @@ export default function AuthPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const { error } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(resetEmail, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+        'A recuperação demorou demais para responder. Tente novamente em alguns instantes.'
+      );
       if (error) throw error;
       toast.success('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
       setForgotPassword(false);
