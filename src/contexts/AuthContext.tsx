@@ -22,6 +22,15 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+const withTimeout = async <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error('Auth initialization timeout')), ms);
+    }),
+  ]);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -48,11 +57,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted) return;
-      applySession(session);
-      if (!session) setLoading(false);
-    });
+    withTimeout(supabase.auth.getSession(), 7000)
+      .then(({ data: { session } }) => {
+        if (!isMounted) return;
+        applySession(session);
+        if (!session) setLoading(false);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        console.error('Failed to initialize auth session:', error);
+        applySession(null);
+        setProfile(null);
+        setIsAdmin(false);
+        setLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
@@ -84,11 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const fetchProfile = async () => {
       try {
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await withTimeout(supabase
           .from('profiles')
           .select('user_id, name, is_approved')
           .eq('user_id', user.id)
-          .single();
+          .single(), 7000);
 
         if (cancelled) return;
 
@@ -99,10 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile({ name: profileData.name, is_approved: profileData.is_approved, user_id: profileData.user_id });
         }
 
-        const { data: roleData } = await supabase
+        const { data: roleData } = await withTimeout(supabase
           .from('user_roles')
           .select('role')
-          .eq('user_id', user.id);
+          .eq('user_id', user.id), 7000);
 
         if (cancelled) return;
 
