@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+const withTimeout = async <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
