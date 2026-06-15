@@ -251,10 +251,13 @@ export default function PredictionsPage() {
   };
 
   const fetchRanking = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_ranking', {});
+    // Reads from cached ranking table instead of calling expensive get_ranking() RPC.
+    const { data, error } = await supabase
+      .from('ranking_cache')
+      .select('user_id, position');
     if (error) return;
     const map = new Map<string, number>();
-    (data ?? []).forEach((r) => map.set(r.out_user_id, r.out_position));
+    (data ?? []).forEach((r) => map.set(r.user_id, r.position));
     setPositionByUser(map);
   }, []);
 

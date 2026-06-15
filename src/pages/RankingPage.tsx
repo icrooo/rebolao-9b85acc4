@@ -66,9 +66,10 @@ export default function RankingPage() {
   useEffect(() => {
     const debouncedFetchRanking = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      // 4s debounce: ranking não é ticker, tolera leve atraso e reduz I/O drasticamente
       debounceRef.current = setTimeout(() => {
         fetchRanking({ silent: true });
-      }, 600);
+      }, 4000);
     };
 
     const channel = supabase
