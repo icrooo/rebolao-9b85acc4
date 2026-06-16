@@ -96,7 +96,7 @@ export default function RankingPage() {
         p_group_id: groupId ?? null,
       });
       if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
-      if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
+      if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); if (!silent) await refreshLastUpdated(); return; }
 
       const entries: RankingEntry[] = data.map((r) => ({
         user_id: r.out_user_id,
@@ -110,8 +110,8 @@ export default function RankingPage() {
         positionChange: null,
       }));
       setRanking(entries);
-      if (!silent) setLoading(false);
-      await refreshLastUpdated();
+      if (!silent) { setLoading(false); await refreshLastUpdated(); }
+      else setLastUpdated(new Date());
       return;
     }
 
@@ -120,7 +120,7 @@ export default function RankingPage() {
       p_group_id: groupId ?? null,
     });
     if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
-    if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
+    if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); if (!silent) await refreshLastUpdated(); return; }
 
     // Variação só faz sentido no ranking geral global (sem filtro de grupo)
     const showChange = !groupId;
@@ -139,9 +139,10 @@ export default function RankingPage() {
 
 
     setRanking(entries);
-    if (!silent) setLoading(false);
-    await refreshLastUpdated();
+    if (!silent) { setLoading(false); await refreshLastUpdated(); }
+    else setLastUpdated(new Date());
   };
+
 
 
   const refreshLastUpdated = async () => {
