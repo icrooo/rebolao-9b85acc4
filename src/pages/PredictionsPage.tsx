@@ -441,11 +441,22 @@ export default function PredictionsPage() {
       if (existing) {
         const { error } = await supabase.from('predictions').update({ home_score_pred: draft.home, away_score_pred: draft.away }).eq('id', existing.id);
         if (error) throw error;
+        setPredictions(prev => {
+          const n = new Map(prev);
+          n.set(match.id, { ...existing, home_score_pred: draft.home, away_score_pred: draft.away });
+          return n;
+        });
       } else {
-        const { error } = await supabase.from('predictions').insert({ user_id: user.id, match_id: match.id, home_score_pred: draft.home, away_score_pred: draft.away });
+        const { data, error } = await supabase.from('predictions').insert({ user_id: user.id, match_id: match.id, home_score_pred: draft.home, away_score_pred: draft.away }).select('id, match_id, home_score_pred, away_score_pred').single();
         if (error) throw error;
+        if (data) {
+          setPredictions(prev => {
+            const n = new Map(prev);
+            n.set(match.id, data as Prediction);
+            return n;
+          });
+        }
       }
-      await fetchData();
       setDrafts(prev => { const n = new Map(prev); n.delete(match.id); return n; });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
