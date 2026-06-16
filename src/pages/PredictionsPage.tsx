@@ -31,6 +31,9 @@ const LOCK_MINUTES = 10;
 const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
 const FILTERS = ['PRÓXIMOS JOGOS', 'TODOS', 'GRUPOS', 'MATA-MATA'] as const;
 
+// Module-level cache for shared friendship groups (rarely changes).
+const sharedGroupsCache = new Map<string, { ts: number; map: Map<string, string[]> }>();
+
 function CountryFlag({ name, side }: { name: string; side: 'home' | 'away' }) {
   const url = getFlagUrl(name, 24);
   if (!url) return null;
