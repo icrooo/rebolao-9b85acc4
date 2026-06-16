@@ -136,6 +136,9 @@ export default function AllPredictionsPage() {
             return [...filtered, ...(scoreRes.data as Score[])];
           });
         }
+        // Invalidate cache so the next mount refetches fresh data.
+        memoryCache = null;
+        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
       } catch (e) {
         console.error('Incremental refresh failed', e);
       }
