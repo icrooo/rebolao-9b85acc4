@@ -145,8 +145,11 @@ export default function RankingPage() {
 
 
   const refreshLastUpdated = async () => {
+    // Reads from ranking_cache (single-row PK lookup via aggregate) — no
+    // sort on the matches table. ranking_cache.updated_at is bumped on every
+    // refresh_ranking_state() call, so it tracks the latest score change.
     const { data } = await supabase
-      .from('matches')
+      .from('ranking_cache')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1);
