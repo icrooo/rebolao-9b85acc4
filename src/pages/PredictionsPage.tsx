@@ -375,7 +375,7 @@ export default function PredictionsPage() {
   const fetchData = async () => {
     if (!user) return;
     const [matchRes, predRes, scoreRes] = await Promise.all([
-      supabase.from('matches').select('*').order('match_datetime', { ascending: true }),
+      supabase.from('matches').select(MATCH_COLS).order('match_datetime', { ascending: true }),
       supabase.from('predictions').select('*').eq('user_id', user.id),
       supabase.from('scores').select('*').eq('user_id', user.id),
     ]);
