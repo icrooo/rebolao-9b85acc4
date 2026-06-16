@@ -267,12 +267,17 @@ export default function PredictionsPage() {
 
   const fetchSharedGroups = useCallback(async () => {
     if (!user) { setSharedGroupsByUser(new Map()); return; }
+    const cached = sharedGroupsCache.get(user.id);
+    if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+      setSharedGroupsByUser(cached.map);
+      return;
+    }
     const { data: myGroups } = await supabase
       .from('user_friendship_groups')
       .select('group_id')
       .eq('user_id', user.id);
     const groupIds = (myGroups ?? []).map(g => g.group_id);
-    if (groupIds.length === 0) { setSharedGroupsByUser(new Map()); return; }
+    if (groupIds.length === 0) { setSharedGroupsByUser(new Map()); sharedGroupsCache.set(user.id, { ts: Date.now(), map: new Map() }); return; }
     const [{ data: members }, { data: groups }] = await Promise.all([
       supabase.from('user_friendship_groups').select('user_id, group_id').in('group_id', groupIds),
       supabase.from('friendship_groups').select('id, name').in('id', groupIds),
@@ -288,6 +293,7 @@ export default function PredictionsPage() {
       map.set(m.user_id, arr);
     });
     setSharedGroupsByUser(map);
+    sharedGroupsCache.set(user.id, { ts: Date.now(), map });
   }, [user]);
 
   useEffect(() => { fetchRanking(); fetchSharedGroups(); }, [fetchRanking, fetchSharedGroups]);
