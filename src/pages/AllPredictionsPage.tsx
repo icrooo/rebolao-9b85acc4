@@ -13,6 +13,26 @@ type Prediction = { user_id: string; match_id: string; home_score_pred: number; 
 type Score = { user_id: string; match_id: string; points: number };
 
 const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
+const CACHE_TTL_MS = 60 * 1000;
+const CACHE_KEY = 'allPredictionsCache:v2';
+
+type CacheShape = { ts: number; profiles: Profile[]; matches: Match[]; predictions: Prediction[]; scores: Score[] };
+let memoryCache: CacheShape | null = null;
+
+function loadCache(): CacheShape | null {
+  if (memoryCache && Date.now() - memoryCache.ts < CACHE_TTL_MS) return memoryCache;
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CacheShape;
+    if (Date.now() - parsed.ts < CACHE_TTL_MS) { memoryCache = parsed; return parsed; }
+  } catch {}
+  return null;
+}
+function saveCache(c: CacheShape) {
+  memoryCache = c;
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {}
+}
 
 export default function AllPredictionsPage() {
   const { now: serverNow } = useServerTime();
@@ -39,18 +59,40 @@ export default function AllPredictionsPage() {
     return all;
   };
 
-  const fetchAll = async () => {
+  const fetchAll = async (force = false) => {
+    if (!force) {
+      const cached = loadCache();
+      if (cached) {
+        setProfiles(cached.profiles);
+        setMatches(cached.matches);
+        setPredictions(cached.predictions);
+        setScores(cached.scores);
+        setLoading(false);
+        return;
+      }
+    }
     try {
-      const [profData, matchData, predData, scoreData] = await Promise.all([
+      // Only fetch matches already locked/started/finished — these are the only
+      // ones that appear in the table. Reduces row counts drastically.
+      const cutoffIso = new Date(serverNow() + 10 * 60 * 1000).toISOString();
+      const matchData = await fetchAllRows<Match>(() =>
+        supabase
+          .from('matches')
+          .select('id, home_team, away_team, match_datetime, is_finished, is_started, home_score, away_score, group_name')
+          .or(`is_started.eq.true,is_finished.eq.true,match_datetime.lte.${cutoffIso}`)
+          .order('match_datetime')
+      );
+      const visibleIds = matchData.map(m => m.id);
+      const [profData, predData, scoreData] = await Promise.all([
         fetchAllRows<Profile>(() => supabase.from('profiles').select('user_id, name').eq('is_approved', true)),
-        fetchAllRows<Match>(() => supabase.from('matches').select('id, home_team, away_team, match_datetime, is_finished, is_started, home_score, away_score, group_name').order('match_datetime')),
-        fetchAllRows<Prediction>(() => supabase.from('predictions').select('user_id, match_id, home_score_pred, away_score_pred')),
-        fetchAllRows<Score>(() => supabase.from('scores').select('user_id, match_id, points')),
+        visibleIds.length === 0 ? Promise.resolve([] as Prediction[]) : fetchAllRows<Prediction>(() => supabase.from('predictions').select('user_id, match_id, home_score_pred, away_score_pred').in('match_id', visibleIds)),
+        visibleIds.length === 0 ? Promise.resolve([] as Score[]) : fetchAllRows<Score>(() => supabase.from('scores').select('user_id, match_id, points').in('match_id', visibleIds)),
       ]);
       setProfiles(profData);
-      setMatches(matchData as Match[]);
+      setMatches(matchData);
       setPredictions(predData);
       setScores(scoreData);
+      saveCache({ ts: Date.now(), profiles: profData, matches: matchData, predictions: predData, scores: scoreData });
     } catch (e: any) {
       toast.error(e?.message ?? 'Erro ao carregar dados');
     } finally {
@@ -94,6 +136,9 @@ export default function AllPredictionsPage() {
             return [...filtered, ...(scoreRes.data as Score[])];
           });
         }
+        // Invalidate cache so the next mount refetches fresh data.
+        memoryCache = null;
+        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
       } catch (e) {
         console.error('Incremental refresh failed', e);
       }

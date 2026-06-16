@@ -96,7 +96,7 @@ export default function RankingPage() {
         p_group_id: groupId ?? null,
       });
       if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
-      if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
+      if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); if (!silent) await refreshLastUpdated(); return; }
 
       const entries: RankingEntry[] = data.map((r) => ({
         user_id: r.out_user_id,
@@ -110,8 +110,8 @@ export default function RankingPage() {
         positionChange: null,
       }));
       setRanking(entries);
-      if (!silent) setLoading(false);
-      await refreshLastUpdated();
+      if (!silent) { setLoading(false); await refreshLastUpdated(); }
+      else setLastUpdated(new Date());
       return;
     }
 
@@ -120,7 +120,7 @@ export default function RankingPage() {
       p_group_id: groupId ?? null,
     });
     if (error) { toast.error(error.message); if (!silent) setLoading(false); return; }
-    if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); await refreshLastUpdated(); return; }
+    if (!data || data.length === 0) { setRanking([]); if (!silent) setLoading(false); if (!silent) await refreshLastUpdated(); return; }
 
     // Variação só faz sentido no ranking geral global (sem filtro de grupo)
     const showChange = !groupId;
@@ -139,14 +139,18 @@ export default function RankingPage() {
 
 
     setRanking(entries);
-    if (!silent) setLoading(false);
-    await refreshLastUpdated();
+    if (!silent) { setLoading(false); await refreshLastUpdated(); }
+    else setLastUpdated(new Date());
   };
 
 
+
   const refreshLastUpdated = async () => {
+    // Reads from ranking_cache (single-row PK lookup via aggregate) — no
+    // sort on the matches table. ranking_cache.updated_at is bumped on every
+    // refresh_ranking_state() call, so it tracks the latest score change.
     const { data } = await supabase
-      .from('matches')
+      .from('ranking_cache')
       .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1);

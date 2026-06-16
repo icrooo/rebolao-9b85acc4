@@ -31,6 +31,9 @@ const LOCK_MINUTES = 10;
 const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
 const FILTERS = ['PRÓXIMOS JOGOS', 'TODOS', 'GRUPOS', 'MATA-MATA'] as const;
 
+// Module-level cache for shared friendship groups (rarely changes).
+const sharedGroupsCache = new Map<string, { ts: number; map: Map<string, string[]> }>();
+
 function CountryFlag({ name, side }: { name: string; side: 'home' | 'away' }) {
   const url = getFlagUrl(name, 24);
   if (!url) return null;
@@ -234,10 +237,14 @@ export default function PredictionsPage() {
 
   useEffect(() => { fetchData(); }, [user]);
 
-  const fetchMatches = async () => {
-    const { data, error } = await supabase.from('matches').select('*').order('match_datetime', { ascending: true });
-    if (error) { toast.error(error.message); return; }
-    if (data) setMatches(data as Match[]);
+  const MATCH_COLS = 'id, home_team, away_team, match_datetime, group_name, home_score, away_score, is_finished, is_started';
+
+  const upsertMatch = (m: Match) => {
+    setMatches(prev => {
+      const byId = new Map(prev.map(x => [x.id, x]));
+      byId.set(m.id, { ...byId.get(m.id), ...m });
+      return Array.from(byId.values()).sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
+    });
   };
 
   const [positionByUser, setPositionByUser] = useState<Map<string, number>>(new Map());
@@ -263,12 +270,17 @@ export default function PredictionsPage() {
 
   const fetchSharedGroups = useCallback(async () => {
     if (!user) { setSharedGroupsByUser(new Map()); return; }
+    const cached = sharedGroupsCache.get(user.id);
+    if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+      setSharedGroupsByUser(cached.map);
+      return;
+    }
     const { data: myGroups } = await supabase
       .from('user_friendship_groups')
       .select('group_id')
       .eq('user_id', user.id);
     const groupIds = (myGroups ?? []).map(g => g.group_id);
-    if (groupIds.length === 0) { setSharedGroupsByUser(new Map()); return; }
+    if (groupIds.length === 0) { setSharedGroupsByUser(new Map()); sharedGroupsCache.set(user.id, { ts: Date.now(), map: new Map() }); return; }
     const [{ data: members }, { data: groups }] = await Promise.all([
       supabase.from('user_friendship_groups').select('user_id, group_id').in('group_id', groupIds),
       supabase.from('friendship_groups').select('id, name').in('id', groupIds),
@@ -284,6 +296,7 @@ export default function PredictionsPage() {
       map.set(m.user_id, arr);
     });
     setSharedGroupsByUser(map);
+    sharedGroupsCache.set(user.id, { ts: Date.now(), map });
   }, [user]);
 
   useEffect(() => { fetchRanking(); fetchSharedGroups(); }, [fetchRanking, fetchSharedGroups]);
@@ -341,12 +354,11 @@ export default function PredictionsPage() {
 
     const channel = supabase
       .channel('matches-realtime-pred')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload: { new?: { id?: string } }) => {
-        fetchMatches();
-        const mid = payload?.new?.id;
-        if (mid && cacheRef.current[mid]) {
-          // refresh cached match predictions if this match's data is open
-          fetchMatchPredictions(mid);
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload: { new?: Match }) => {
+        const m = payload?.new;
+        if (m && m.id) {
+          upsertMatch(m);
+          if (cacheRef.current[m.id]) fetchMatchPredictions(m.id);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, (payload: { new?: { match_id?: string }; old?: { match_id?: string } }) => {
@@ -372,7 +384,7 @@ export default function PredictionsPage() {
   const fetchData = async () => {
     if (!user) return;
     const [matchRes, predRes, scoreRes] = await Promise.all([
-      supabase.from('matches').select('*').order('match_datetime', { ascending: true }),
+      supabase.from('matches').select(MATCH_COLS).order('match_datetime', { ascending: true }),
       supabase.from('predictions').select('*').eq('user_id', user.id),
       supabase.from('scores').select('*').eq('user_id', user.id),
     ]);
@@ -438,11 +450,22 @@ export default function PredictionsPage() {
       if (existing) {
         const { error } = await supabase.from('predictions').update({ home_score_pred: draft.home, away_score_pred: draft.away }).eq('id', existing.id);
         if (error) throw error;
+        setPredictions(prev => {
+          const n = new Map(prev);
+          n.set(match.id, { ...existing, home_score_pred: draft.home, away_score_pred: draft.away });
+          return n;
+        });
       } else {
-        const { error } = await supabase.from('predictions').insert({ user_id: user.id, match_id: match.id, home_score_pred: draft.home, away_score_pred: draft.away });
+        const { data, error } = await supabase.from('predictions').insert({ user_id: user.id, match_id: match.id, home_score_pred: draft.home, away_score_pred: draft.away }).select('id, match_id, home_score_pred, away_score_pred').single();
         if (error) throw error;
+        if (data) {
+          setPredictions(prev => {
+            const n = new Map(prev);
+            n.set(match.id, data as Prediction);
+            return n;
+          });
+        }
       }
-      await fetchData();
       setDrafts(prev => { const n = new Map(prev); n.delete(match.id); return n; });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : String(e));
