@@ -223,6 +223,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ranking_kickoff_snapshots: {
+        Row: {
+          block_time: string
+          created_at: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          block_time: string
+          created_at?: string
+          position: number
+          user_id: string
+        }
+        Update: {
+          block_time?: string
+          created_at?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       ranking_position_state: {
         Row: {
           current_position: number | null
@@ -353,6 +374,10 @@ export type Database = {
         Returns: undefined
       }
       calculate_match_scores: {
+        Args: { p_match_id: string }
+        Returns: undefined
+      }
+      ensure_kickoff_snapshot: {
         Args: { p_match_id: string }
         Returns: undefined
       }
