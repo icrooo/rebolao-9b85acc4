@@ -234,10 +234,14 @@ export default function PredictionsPage() {
 
   useEffect(() => { fetchData(); }, [user]);
 
-  const fetchMatches = async () => {
-    const { data, error } = await supabase.from('matches').select('*').order('match_datetime', { ascending: true });
-    if (error) { toast.error(error.message); return; }
-    if (data) setMatches(data as Match[]);
+  const MATCH_COLS = 'id, home_team, away_team, match_datetime, group_name, home_score, away_score, is_finished, is_started';
+
+  const upsertMatch = (m: Match) => {
+    setMatches(prev => {
+      const byId = new Map(prev.map(x => [x.id, x]));
+      byId.set(m.id, { ...byId.get(m.id), ...m });
+      return Array.from(byId.values()).sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
+    });
   };
 
   const [positionByUser, setPositionByUser] = useState<Map<string, number>>(new Map());
