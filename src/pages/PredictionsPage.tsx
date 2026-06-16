@@ -345,12 +345,11 @@ export default function PredictionsPage() {
 
     const channel = supabase
       .channel('matches-realtime-pred')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload: { new?: { id?: string } }) => {
-        fetchMatches();
-        const mid = payload?.new?.id;
-        if (mid && cacheRef.current[mid]) {
-          // refresh cached match predictions if this match's data is open
-          fetchMatchPredictions(mid);
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload: { new?: Match }) => {
+        const m = payload?.new;
+        if (m && m.id) {
+          upsertMatch(m);
+          if (cacheRef.current[m.id]) fetchMatchPredictions(m.id);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, (payload: { new?: { match_id?: string }; old?: { match_id?: string } }) => {
