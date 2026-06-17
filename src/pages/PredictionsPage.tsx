@@ -30,7 +30,7 @@ export type MatchPredictionEntry = {
 
 const LOCK_MINUTES = 10;
 const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
-const FILTERS = ['PRÓXIMOS JOGOS', 'TODOS', 'GRUPOS', 'MATA-MATA'] as const;
+const FILTERS = ['PRÓXIMOS JOGOS', 'TODOS', 'MATA-MATA'] as const;
 
 // Module-level cache for shared friendship groups (rarely changes).
 const sharedGroupsCache = new Map<string, { ts: number; map: Map<string, string[]> }>();
@@ -397,10 +397,6 @@ export default function PredictionsPage() {
           .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime()).slice(0, 4);
       }
       return upcoming;
-    }
-    if (filter === 'GRUPOS') {
-      const getGroupOrder = (name: string) => { const ki = KNOCKOUT_PHASES.indexOf(name); if (ki !== -1) return `ZZ_${ki.toString().padStart(2, '0')}`; return name; };
-      return [...matches].sort((a, b) => getGroupOrder(a.group_name).localeCompare(getGroupOrder(b.group_name)) || new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
     }
     if (filter === 'MATA-MATA') {
       return matches
