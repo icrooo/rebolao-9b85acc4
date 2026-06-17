@@ -64,25 +64,7 @@ export default function RankingPage() {
 
   useEffect(() => { fetchRanking(); }, [tab, selectedDate, selectedGroup]);
 
-  useEffect(() => {
-    const debouncedFetchRanking = () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      // 4s debounce: ranking não é ticker, tolera leve atraso e reduz I/O drasticamente
-      debounceRef.current = setTimeout(() => {
-        fetchRanking({ silent: true });
-      }, 4000);
-    };
-
-    const channel = supabase
-      .channel('ranking-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, debouncedFetchRanking)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, debouncedFetchRanking)
-      .subscribe();
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      supabase.removeChannel(channel);
-    };
-  }, [tab, selectedDate, selectedGroup]);
+  // Realtime removido: ranking agora atualiza no mount/navegação e pelo botão flutuante.
 
   const fetchRanking = async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
