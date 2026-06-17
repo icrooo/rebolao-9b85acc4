@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
 import { AppLayout } from '@/components/AppLayout';
+import { FloatingRefreshButton } from '@/components/FloatingRefreshButton';
 import { Button } from '@/components/ui/button';
 import { Loader2, Check, Lock, Minus, Plus, ChevronDown, ChevronUp, Clock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
