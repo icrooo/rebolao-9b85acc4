@@ -343,43 +343,14 @@ export default function PredictionsPage() {
     }
   }, []);
 
-  const scoresDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Realtime removido: dados atualizam no mount/navegação e pelo botão flutuante.
 
-  useEffect(() => {
-    const debouncedFetchScores = () => {
-      if (scoresDebounceRef.current) clearTimeout(scoresDebounceRef.current);
-      // 3s debounce to coalesce bursts during live matches and reduce DB I/O
-      scoresDebounceRef.current = setTimeout(() => { fetchScores(); }, 3000);
-    };
+  const handleManualRefresh = useCallback(async () => {
+    // Limpa cache de "Ver palpites" para forçar refetch quando reaberto.
+    setMatchPredictionsCache({});
+    await Promise.all([fetchData(), fetchScores(), fetchRanking(), fetchSharedGroups()]);
+  }, [fetchRanking, fetchSharedGroups]);
 
-    const channel = supabase
-      .channel('matches-realtime-pred')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload: { new?: Match }) => {
-        const m = payload?.new;
-        if (m && m.id) {
-          upsertMatch(m);
-          if (cacheRef.current[m.id]) fetchMatchPredictions(m.id);
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, (payload: { new?: { match_id?: string }; old?: { match_id?: string } }) => {
-        debouncedFetchScores();
-        const mid = payload?.new?.match_id ?? payload?.old?.match_id;
-        if (mid && cacheRef.current[mid]) {
-          fetchMatchPredictions(mid);
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, (payload: { new?: { match_id?: string }; old?: { match_id?: string } }) => {
-        const mid = payload?.new?.match_id ?? payload?.old?.match_id;
-        if (mid && cacheRef.current[mid]) {
-          fetchMatchPredictions(mid);
-        }
-      })
-      .subscribe();
-    return () => {
-      if (scoresDebounceRef.current) clearTimeout(scoresDebounceRef.current);
-      supabase.removeChannel(channel);
-    };
-  }, [user, fetchMatchPredictions]);
 
   const fetchData = async () => {
     if (!user) return;
