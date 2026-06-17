@@ -247,6 +247,7 @@ export default function AllPredictionsPage() {
           </div>
         )}
       </div>
+      <FloatingRefreshButton onRefresh={() => fetchAll(true)} />
     </AppLayout>
   );
 }
