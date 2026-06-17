@@ -103,72 +103,8 @@ export default function AllPredictionsPage() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  // Incremental realtime: only refetch rows for the affected match, with debounce.
-  const pendingMatchIds = useRef<Set<string>>(new Set());
-  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Realtime removido: dados atualizam no mount/navegação e pelo botão flutuante.
 
-  useEffect(() => {
-    const flushPending = async () => {
-      const ids = Array.from(pendingMatchIds.current);
-      pendingMatchIds.current.clear();
-      if (ids.length === 0) return;
-      try {
-        const [matchRes, predRes, scoreRes] = await Promise.all([
-          supabase.from('matches').select('id, home_team, away_team, match_datetime, is_finished, is_started, home_score, away_score, group_name').in('id', ids),
-          supabase.from('predictions').select('user_id, match_id, home_score_pred, away_score_pred').in('match_id', ids),
-          supabase.from('scores').select('user_id, match_id, points').in('match_id', ids),
-        ]);
-        if (matchRes.data) {
-          setMatches(prev => {
-            const byId = new Map(prev.map(m => [m.id, m]));
-            (matchRes.data as Match[]).forEach(m => byId.set(m.id, m));
-            return Array.from(byId.values()).sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
-          });
-        }
-        if (predRes.data) {
-          setPredictions(prev => {
-            const filtered = prev.filter(p => !ids.includes(p.match_id));
-            return [...filtered, ...(predRes.data as Prediction[])];
-          });
-        }
-        if (scoreRes.data) {
-          setScores(prev => {
-            const filtered = prev.filter(s => !ids.includes(s.match_id));
-            return [...filtered, ...(scoreRes.data as Score[])];
-          });
-        }
-        // Invalidate cache so the next mount refetches fresh data.
-        memoryCache = null;
-        try { sessionStorage.removeItem(CACHE_KEY); } catch {}
-      } catch (e) {
-        console.error('Incremental refresh failed', e);
-      }
-    };
-
-    const enqueue = (matchId?: string) => {
-      if (!matchId) return;
-      pendingMatchIds.current.add(matchId);
-      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
-      refreshDebounceRef.current = setTimeout(flushPending, 2000);
-    };
-
-    const channel = supabase
-      .channel('all-predictions-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload: any) => {
-        enqueue(payload?.new?.id ?? payload?.old?.id);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, (payload: any) => {
-        enqueue(payload?.new?.match_id ?? payload?.old?.match_id);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'predictions' }, (payload: any) => {
-        enqueue(payload?.new?.match_id ?? payload?.old?.match_id);
-      })
-      .subscribe();
-    return () => {
-      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   const isLocked = (m: Match) => m.is_finished || m.is_started || new Date(m.match_datetime).getTime() - 10 * 60 * 1000 <= serverNow();
 
