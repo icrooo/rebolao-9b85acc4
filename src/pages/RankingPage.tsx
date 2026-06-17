@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
+import { FloatingRefreshButton } from '@/components/FloatingRefreshButton';
 import { Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Minus, Trophy } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -50,7 +51,7 @@ export default function RankingPage() {
     obs.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => obs.disconnect();
   }, []);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -63,25 +64,7 @@ export default function RankingPage() {
 
   useEffect(() => { fetchRanking(); }, [tab, selectedDate, selectedGroup]);
 
-  useEffect(() => {
-    const debouncedFetchRanking = () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      // 4s debounce: ranking não é ticker, tolera leve atraso e reduz I/O drasticamente
-      debounceRef.current = setTimeout(() => {
-        fetchRanking({ silent: true });
-      }, 4000);
-    };
-
-    const channel = supabase
-      .channel('ranking-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, debouncedFetchRanking)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, debouncedFetchRanking)
-      .subscribe();
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      supabase.removeChannel(channel);
-    };
-  }, [tab, selectedDate, selectedGroup]);
+  // Realtime removido: ranking agora atualiza no mount/navegação e pelo botão flutuante.
 
   const fetchRanking = async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true;
@@ -312,6 +295,7 @@ export default function RankingPage() {
           </div>
         )}
       </div>
+      <FloatingRefreshButton onRefresh={() => fetchRanking()} />
     </AppLayout>
   );
 }
