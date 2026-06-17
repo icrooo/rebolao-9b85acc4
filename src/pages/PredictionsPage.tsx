@@ -563,6 +563,7 @@ export default function PredictionsPage() {
           </div>
         )}
       </div>
+      <FloatingRefreshButton onRefresh={handleManualRefresh} />
     </AppLayout>
   );
 }
