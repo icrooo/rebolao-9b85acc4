@@ -295,6 +295,7 @@ export default function RankingPage() {
           </div>
         )}
       </div>
+      <FloatingRefreshButton onRefresh={() => fetchRanking()} />
     </AppLayout>
   );
 }
