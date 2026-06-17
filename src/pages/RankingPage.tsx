@@ -51,7 +51,7 @@ export default function RankingPage() {
     obs.observe(root, { attributes: true, attributeFilter: ['class'] });
     return () => obs.disconnect();
   }, []);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
 
   useEffect(() => {
     const fetchGroups = async () => {
