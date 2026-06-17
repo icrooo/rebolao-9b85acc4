@@ -205,13 +205,13 @@ export default function AllPredictionsPage() {
         {visibleMatches.length === 0 ? (
           <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo nesta fase ainda</p></div>
         ) : (
-          <div className="overflow-x-auto -mx-4 px-4">
+          <div className="overflow-x-auto -mx-4">
             <table className="text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-20 text-left py-2 pr-1 font-medium text-muted-foreground min-w-[100px] bg-background">Nome</th>
+                  <th className="sticky left-0 top-0 z-30 text-left py-2 pl-4 pr-1 font-medium text-muted-foreground min-w-[100px] bg-background">Nome</th>
                   {visibleMatches.map(m => (
-                    <th key={m.id} className="text-center px-0.5 py-2 font-normal">
+                    <th key={m.id} className="sticky top-0 z-20 bg-background text-center px-0.5 py-2 font-normal">
                       <div className="text-[9px] text-muted-foreground whitespace-nowrap">
                         {m.home_team.slice(0, 3).toUpperCase()}×{m.away_team.slice(0, 3).toUpperCase()}
                       </div>
@@ -224,7 +224,7 @@ export default function AllPredictionsPage() {
                   const rank = rankingMap.get(profile.user_id);
                   return (
                     <tr key={profile.user_id} className="animate-reveal-up" style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}>
-                      <td className="sticky left-0 z-20 py-1.5 pr-1 whitespace-nowrap min-w-[100px] bg-background">
+                      <td className="sticky left-0 z-20 py-1.5 pl-4 pr-1 whitespace-nowrap min-w-[100px] bg-background">
                         <span className={user && profile.user_id === user.id ? 'font-bold' : 'font-medium'}>{profile.name}</span> <span className="text-muted-foreground font-normal">[{rank ? `${rank}º` : '-'}]</span>
                       </td>
                       {visibleMatches.map(match => {
