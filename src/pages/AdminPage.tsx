@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -231,6 +231,15 @@ export default function AdminPage() {
 
   const getGroupLabel = (name: string) => KNOCKOUT_PHASES.includes(name) ? name : `Grupo ${name}`;
 
+  const sortedMatches = useMemo(() => {
+    return [...matches].sort((a, b) => {
+      const aLive = a.is_started && !a.is_finished;
+      const bLive = b.is_started && !b.is_finished;
+      if (aLive !== bLive) return aLive ? -1 : 1;
+      return new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime();
+    });
+  }, [matches]);
+
   if (loading) {
     return (
       <AppLayout>
@@ -368,7 +377,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {matches.map((m, i) => (
+            {sortedMatches.map((m, i) => (
               <div key={m.id} className="glass-card p-4 animate-reveal-up" style={{ animationDelay: `${i * 50}ms` }}>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
