@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
+import { FloatingRefreshButton } from '@/components/FloatingRefreshButton';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
