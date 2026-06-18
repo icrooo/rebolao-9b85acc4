@@ -289,7 +289,6 @@ export default function PredictionsPage() {
     const groupNameById = new Map((groups ?? []).map(g => [g.id, g.name]));
     const map = new Map<string, string[]>();
     (members ?? []).forEach(m => {
-      if (m.user_id === user.id) return;
       const name = groupNameById.get(m.group_id);
       if (!name) return;
       const arr = map.get(m.user_id) ?? [];
