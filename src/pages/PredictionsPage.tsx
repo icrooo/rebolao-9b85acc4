@@ -44,7 +44,7 @@ function CountryFlag({ name, side }: { name: string; side: 'home' | 'away' }) {
 }
 
 function ScoreBadge({ points, isProvisional }: { points: number; isProvisional?: boolean }) {
-  const cls = points === 5 ? 'score-badge-5' : points === 2 ? 'score-badge-2' : points === -1 ? 'score-badge-negative' : 'score-badge-0';
+  const cls = points === 5 ? 'score-badge-5' : points === 2 ? 'score-badge-2' : points === -1 ? 'score-badge-negative' : points === -2 ? 'bg-score-missed text-white' : 'score-badge-0';
   return (
     <span className="inline-flex items-center gap-1">
       <span className={`${cls} text-xs font-bold px-2 py-0.5 rounded-full`}>{points > 0 ? '+' : ''}{points} pts</span>
@@ -289,7 +289,6 @@ export default function PredictionsPage() {
     const groupNameById = new Map((groups ?? []).map(g => [g.id, g.name]));
     const map = new Map<string, string[]>();
     (members ?? []).forEach(m => {
-      if (m.user_id === user.id) return;
       const name = groupNameById.get(m.group_id);
       if (!name) return;
       const arr = map.get(m.user_id) ?? [];
