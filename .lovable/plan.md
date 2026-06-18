@@ -1,29 +1,28 @@
-# Ajustes de UI
+## Ajustes em /predictions
 
-## 1. `/predictions` — remover filtro "GRUPOS"
-- `src/pages/PredictionsPage.tsx` linha 33: alterar `FILTERS` para `['PRÓXIMOS JOGOS', 'TODOS', 'MATA-MATA']`.
-- Se o filtro atual salvo for `'GRUPOS'`, o estado inicial já é `'PRÓXIMOS JOGOS'`, então sem migração. Nenhuma outra lógica precisa mudar (o branch `case 'GRUPOS'` simplesmente vira código morto — removo junto).
+### 1. Tags dos grupos de amizade no próprio usuário
+Em `src/pages/PredictionsPage.tsx`, dentro de `fetchSharedGroups` (linha ~292), há um `if (m.user_id === user.id) return;` que pula o próprio usuário ao montar o mapa de grupos compartilhados. Por isso a tag de grupo nunca aparece ao lado do nome do usuário logado.
 
-## 2. `/all-predictions` — sticky header + fix do scroll lateral
-Problema atual: o wrapper usa `overflow-x-auto -mx-4 px-4`. Como o `padding` fica **dentro** do contêiner de scroll, `position: sticky; left: 0` gruda na borda interna após o padding — então, ao rolar para a direita, as células das colunas seguintes aparecem "vazando" sob os 16px de padding esquerdo, antes da coluna de nomes.
+**Mudança:** remover esse `return`, fazendo o próprio `user.id` ser incluído no `sharedGroupsByUser`. As tags então renderizam normalmente na linha do usuário em "Ver palpites" (linha ~199-201).
 
-Mudanças em `src/pages/AllPredictionsPage.tsx`:
-- Trocar o wrapper `<div className="overflow-x-auto -mx-4 px-4">` por `<div className="overflow-x-auto -mx-4">` e adicionar `pl-4` apenas na primeira `<th>`/`<td>` (a coluna "Nome") — assim o padding vira parte da própria célula sticky e some o vazamento à esquerda.
-- Tornar o cabeçalho fixo verticalmente: adicionar `sticky top-0 z-20 bg-background` em todos os `<th>`; a célula do canto (Nome) recebe `z-30` (sticky em duas direções).
-- Garantir que `bg-background` cubra completamente as células sticky em ambos os temas (já é o caso) e remover qualquer transparência herdada.
+### 2. Penalidade de -2 em roxo
+Em `src/pages/PredictionsPage.tsx`, componente `ScoreBadge` (linha 47):
 
-Resultado: cabeçalho permanece visível ao rolar para baixo; coluna de nomes permanece visível ao rolar para a direita, sem conteúdo aparecendo à sua esquerda.
+```ts
+const cls = points === 5 ? 'score-badge-5'
+  : points === 2 ? 'score-badge-2'
+  : points === -1 ? 'score-badge-negative'
+  : 'score-badge-0';
+```
 
-## 3. `/admin` — jogo em andamento no topo
-Em `src/pages/AdminPage.tsx`, ao renderizar a lista de jogos (aba "matches"), aplicar ordenação derivada:
-- Jogos com `is_started === true && is_finished === false` aparecem primeiro (mantendo ordem cronológica entre si, caso haja mais de um).
-- Os demais seguem a ordem cronológica original (`match_datetime` asc), que já vem do backend.
-- Implementação: `const sortedMatches = useMemo(() => [...matches].sort((a,b) => { const aLive = a.is_started && !a.is_finished; const bLive = b.is_started && !b.is_finished; if (aLive !== bLive) return aLive ? -1 : 1; return new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime(); }), [matches]);` e iterar sobre `sortedMatches` no `.map`.
-- Ao encerrar (`is_finished = true`), o jogo deixa de ser "live" e volta automaticamente à posição cronológica. Sem alteração de schema.
+Hoje `-2` cai no `else` e usa `score-badge-0` (cinza). Vou adicionar um ramo:
 
-## 4. Header — bump de versão
-- `src/components/AppLayout.tsx` linha 74: trocar `v. 1.1 beta` por `v. 1.2`.
+```ts
+: points === -2 ? 'bg-score-missed text-white'
+```
 
-## Fora de escopo
-- Nenhuma mudança de backend, migrations ou realtime.
-- Nenhuma alteração nos cálculos de pontuação ou ranking.
+Assim a badge `-2 pts` fica no mesmo roxo já usado para o `-x-` em "Ver palpites" (token `--score-missed`).
+
+### Escopo
+- Apenas `src/pages/PredictionsPage.tsx`.
+- Sem mudanças de backend, lógica de pontuação ou estilos globais.
