@@ -44,6 +44,7 @@ export default function AdminPage() {
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [editData, setEditData] = useState({ home_team: '', away_team: '', match_datetime: '', group_name: '' });
   const [updatingScore, setUpdatingScore] = useState<string | null>(null);
+  const [openFinished, setOpenFinished] = useState(false);
 
   // Friendship groups
   const [friendshipGroups, setFriendshipGroups] = useState<FriendshipGroup[]>([]);
