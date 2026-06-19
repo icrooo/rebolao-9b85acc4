@@ -233,14 +233,16 @@ export default function AdminPage() {
 
   const getGroupLabel = (name: string) => KNOCKOUT_PHASES.includes(name) ? name : `Grupo ${name}`;
 
-  const sortedMatches = useMemo(() => {
-    return [...matches].sort((a, b) => {
-      const aLive = a.is_started && !a.is_finished;
-      const bLive = b.is_started && !b.is_finished;
-      if (aLive !== bLive) return aLive ? -1 : 1;
-      return new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime();
-    });
-  }, [matches]);
+  const finishedMatches = useMemo(
+    () => [...matches].filter(m => m.is_finished)
+      .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime()),
+    [matches],
+  );
+  const ongoingMatches = useMemo(
+    () => [...matches].filter(m => !m.is_finished)
+      .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime()),
+    [matches],
+  );
 
   if (loading) {
     return (
