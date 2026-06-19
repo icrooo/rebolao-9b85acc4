@@ -381,136 +381,158 @@ export default function AdminPage() {
               </div>
             )}
 
-            {sortedMatches.map((m, i) => (
-              <div key={m.id} className="glass-card p-4 animate-reveal-up" style={{ animationDelay: `${i * 50}ms` }}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    {getGroupLabel(m.group_name)} · {format(new Date(m.match_datetime), "dd MMM HH:mm", { locale: ptBR })}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {m.is_finished && (
-                      <span className="text-[10px] bg-foreground/10 text-foreground px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                        <Trophy className="h-3 w-3" /> Encerrado
-                      </span>
-                    )}
-                    {m.is_started && !m.is_finished && (
-                      <span className="text-[10px] bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full font-medium">
-                        Em andamento
-                      </span>
-                    )}
-                    {!m.is_finished && (
-                      <button onClick={() => editingMatch === m.id ? setEditingMatch(null) : startEdit(m)} className="text-muted-foreground hover:text-foreground active:scale-90 transition-all">
-                        {editingMatch === m.id ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                      </button>
-                    )}
-                    <button onClick={() => deleteMatch(m.id)} className="text-destructive hover:text-destructive/80 active:scale-90 transition-all">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {editingMatch === m.id ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input placeholder="Time casa" value={editData.home_team} onChange={e => setEditData({ ...editData, home_team: e.target.value })} />
-                      <Input placeholder="Time fora" value={editData.away_team} onChange={e => setEditData({ ...editData, away_team: e.target.value })} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="datetime-local" value={editData.match_datetime} onChange={e => setEditData({ ...editData, match_datetime: e.target.value })} />
-                      <Select value={editData.group_name} onValueChange={v => setEditData({ ...editData, group_name: v })}>
-                        <SelectTrigger><SelectValue placeholder="Grupo/Fase" /></SelectTrigger>
-                        <SelectContent>
-                          {GROUP_OPTIONS.map(g => (<SelectItem key={g} value={g}>{g}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button size="sm" onClick={() => saveEdit(m.id)} className="w-full active:scale-95">Salvar alterações</Button>
-                  </div>
-                ) : m.is_finished ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="font-medium text-sm">{m.home_team}</span>
-                      {(() => { const url = getFlagUrl(m.home_team, 24); return url ? <img src={url} alt={m.home_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
-                      <span className="font-bold tabular-nums">{m.home_score} × {m.away_score}</span>
-                      {(() => { const url = getFlagUrl(m.away_team, 24); return url ? <img src={url} alt={m.away_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
-                      <span className="font-medium text-sm">{m.away_team}</span>
-                    </div>
-                    <Button size="sm" onClick={() => setConfirmRestart(m.id)}
-                      className="w-full text-xs active:scale-95 bg-foreground text-background hover:bg-foreground/90">
-                      <RotateCcw className="h-3 w-3 mr-1" /> Reiniciar
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1 flex items-center justify-end gap-1">
-                        <p className="text-sm font-medium truncate">{m.home_team}</p>
-                        {(() => { const url = getFlagUrl(m.home_team, 24); return url ? <img src={url} alt={m.home_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {m.is_started ? (
-                          <>
-                            <button disabled={updatingScore === m.id || (m.home_score ?? 0) <= 0} onClick={() => adjustScore(m.id, 'home_score', -1)}
-                              className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="w-6 text-center font-bold tabular-nums">{m.home_score ?? 0}</span>
-                            <button disabled={updatingScore === m.id} onClick={() => adjustScore(m.id, 'home_score', 1)}
-                              className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </div>
-                      <span className="text-muted-foreground text-xs mx-1">×</span>
-                      <div className="flex items-center gap-1">
-                        {m.is_started ? (
-                          <>
-                            <button disabled={updatingScore === m.id || (m.away_score ?? 0) <= 0} onClick={() => adjustScore(m.id, 'away_score', -1)}
-                              className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="w-6 text-center font-bold tabular-nums">{m.away_score ?? 0}</span>
-                            <button disabled={updatingScore === m.id} onClick={() => adjustScore(m.id, 'away_score', 1)}
-                              className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </div>
-                      <div className="flex-1 flex items-center gap-1">
-                        {(() => { const url = getFlagUrl(m.away_team, 24); return url ? <img src={url} alt={m.away_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
-                        <p className="text-sm font-medium truncate">{m.away_team}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 mt-3">
-                      {!m.is_started ? (
-                        <Button size="sm" onClick={() => startMatch(m.id)} disabled={startingMatch === m.id}
-                          className="flex-1 text-xs active:scale-95 bg-green-600 hover:bg-green-700">
-                          {startingMatch === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Play className="h-3 w-3 mr-1" /> Iniciar jogo</>}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button size="sm" onClick={() => setConfirmRestart(m.id)}
-                            className="flex-1 text-xs active:scale-95 bg-yellow-200 text-yellow-900 hover:bg-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 dark:hover:bg-yellow-900/60">
-                            <RotateCcw className="h-3 w-3 mr-1" /> Reiniciar
-                          </Button>
-                          <Button size="sm" onClick={() => setConfirmFinish(m.id)} disabled={finishingMatch === m.id}
-                            className="flex-1 text-xs active:scale-95 bg-red-200 text-red-900 hover:bg-red-300 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60">
-                            {finishingMatch === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '🏁 Encerrar'}
-                          </Button>
-                        </>
+            {(() => {
+              const renderMatchCard = (m: Match, i: number) => (
+                <div key={m.id} className="glass-card p-4 animate-reveal-up" style={{ animationDelay: `${i * 50}ms` }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      {getGroupLabel(m.group_name)} · {format(new Date(m.match_datetime), "dd MMM HH:mm", { locale: ptBR })}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {m.is_finished && (
+                        <span className="text-[10px] bg-foreground/10 text-foreground px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                          <Trophy className="h-3 w-3" /> Encerrado
+                        </span>
                       )}
+                      {m.is_started && !m.is_finished && (
+                        <span className="text-[10px] bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full font-medium">
+                          Em andamento
+                        </span>
+                      )}
+                      {!m.is_finished && (
+                        <button onClick={() => editingMatch === m.id ? setEditingMatch(null) : startEdit(m)} className="text-muted-foreground hover:text-foreground active:scale-90 transition-all">
+                          {editingMatch === m.id ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                        </button>
+                      )}
+                      <button onClick={() => deleteMatch(m.id)} className="text-destructive hover:text-destructive/80 active:scale-90 transition-all">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  </>
-                )}
-              </div>
-            ))}
+                  </div>
+
+                  {editingMatch === m.id ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Time casa" value={editData.home_team} onChange={e => setEditData({ ...editData, home_team: e.target.value })} />
+                        <Input placeholder="Time fora" value={editData.away_team} onChange={e => setEditData({ ...editData, away_team: e.target.value })} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input type="datetime-local" value={editData.match_datetime} onChange={e => setEditData({ ...editData, match_datetime: e.target.value })} />
+                        <Select value={editData.group_name} onValueChange={v => setEditData({ ...editData, group_name: v })}>
+                          <SelectTrigger><SelectValue placeholder="Grupo/Fase" /></SelectTrigger>
+                          <SelectContent>
+                            {GROUP_OPTIONS.map(g => (<SelectItem key={g} value={g}>{g}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button size="sm" onClick={() => saveEdit(m.id)} className="w-full active:scale-95">Salvar alterações</Button>
+                    </div>
+                  ) : m.is_finished ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="font-medium text-sm">{m.home_team}</span>
+                        {(() => { const url = getFlagUrl(m.home_team, 24); return url ? <img src={url} alt={m.home_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
+                        <span className="font-bold tabular-nums">{m.home_score} × {m.away_score}</span>
+                        {(() => { const url = getFlagUrl(m.away_team, 24); return url ? <img src={url} alt={m.away_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
+                        <span className="font-medium text-sm">{m.away_team}</span>
+                      </div>
+                      <Button size="sm" onClick={() => setConfirmRestart(m.id)}
+                        className="w-full text-xs active:scale-95 bg-foreground text-background hover:bg-foreground/90">
+                        <RotateCcw className="h-3 w-3 mr-1" /> Reiniciar
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 flex items-center justify-end gap-1">
+                          <p className="text-sm font-medium truncate">{m.home_team}</p>
+                          {(() => { const url = getFlagUrl(m.home_team, 24); return url ? <img src={url} alt={m.home_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {m.is_started ? (
+                            <>
+                              <button disabled={updatingScore === m.id || (m.home_score ?? 0) <= 0} onClick={() => adjustScore(m.id, 'home_score', -1)}
+                                className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="w-6 text-center font-bold tabular-nums">{m.home_score ?? 0}</span>
+                              <button disabled={updatingScore === m.id} onClick={() => adjustScore(m.id, 'home_score', 1)}
+                                className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </div>
+                        <span className="text-muted-foreground text-xs mx-1">×</span>
+                        <div className="flex items-center gap-1">
+                          {m.is_started ? (
+                            <>
+                              <button disabled={updatingScore === m.id || (m.away_score ?? 0) <= 0} onClick={() => adjustScore(m.id, 'away_score', -1)}
+                                className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="w-6 text-center font-bold tabular-nums">{m.away_score ?? 0}</span>
+                              <button disabled={updatingScore === m.id} onClick={() => adjustScore(m.id, 'away_score', 1)}
+                                className="h-7 w-7 flex items-center justify-center rounded-md bg-secondary text-foreground disabled:opacity-30 active:scale-95 transition-transform">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </div>
+                        <div className="flex-1 flex items-center gap-1">
+                          {(() => { const url = getFlagUrl(m.away_team, 24); return url ? <img src={url} alt={m.away_team} className="w-5 h-4 object-cover rounded-sm" /> : null; })()}
+                          <p className="text-sm font-medium truncate">{m.away_team}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-3">
+                        {!m.is_started ? (
+                          <Button size="sm" onClick={() => startMatch(m.id)} disabled={startingMatch === m.id}
+                            className="flex-1 text-xs active:scale-95 bg-green-600 hover:bg-green-700">
+                            {startingMatch === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Play className="h-3 w-3 mr-1" /> Iniciar jogo</>}
+                          </Button>
+                        ) : (
+                          <>
+                            <Button size="sm" onClick={() => setConfirmRestart(m.id)}
+                              className="flex-1 text-xs active:scale-95 bg-yellow-200 text-yellow-900 hover:bg-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200 dark:hover:bg-yellow-900/60">
+                              <RotateCcw className="h-3 w-3 mr-1" /> Reiniciar
+                            </Button>
+                            <Button size="sm" onClick={() => setConfirmFinish(m.id)} disabled={finishingMatch === m.id}
+                              className="flex-1 text-xs active:scale-95 bg-red-200 text-red-900 hover:bg-red-300 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60">
+                              {finishingMatch === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : '🏁 Encerrar'}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+
+              return (
+                <>
+                  {finishedMatches.length > 0 && (
+                    <Collapsible open={openFinished} onOpenChange={setOpenFinished}>
+                      <CollapsibleTrigger className="w-full glass-card px-4 py-3 flex items-center justify-between active:scale-[0.99] transition-all">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                          <Trophy className="h-3.5 w-3.5" />
+                          Encerrados ({finishedMatches.length})
+                        </span>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${openFinished ? 'rotate-180' : ''}`} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 mt-3 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
+                        {finishedMatches.map((m, i) => renderMatchCard(m, i))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                  {ongoingMatches.map((m, i) => renderMatchCard(m, i))}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
