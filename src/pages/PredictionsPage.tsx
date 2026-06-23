@@ -472,98 +472,124 @@ export default function PredictionsPage() {
           ))}
         </div>
 
-        {filteredMatches.length === 0 ? (
-          <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMatches.map((match, i) => {
-              const locked = isLocked(match);
-              const pred = predictions.get(match.id);
-              const score = scores.get(match.id);
-              const draft = getDraft(match.id);
-              const isProvisional = score?.is_provisional === true;
-              const displayPoints = score?.points ?? null;
-              const btnState = getButtonState(match.id);
-
-              return (
-                <div key={match.id} className="glass-card p-4 animate-reveal-up relative" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      {match.group_name.length === 1 ? `Grupo ${match.group_name}` : match.group_name} · {format(new Date(match.match_datetime), "dd MMM · HH:mm", { locale: ptBR })}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {!locked && (
-                        <CountdownTimer datetime={match.match_datetime} serverNow={serverNow} onExpired={handleTimerExpired} />
-                      )}
-                      <MatchStatusBadge match={match} serverNow={serverNow} />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
-                    <div className="flex items-center justify-end gap-1 min-w-0">
-                      <p className="text-sm font-medium text-right" style={{ wordBreak: 'break-word' }}>{match.home_team}</p>
-                      <CountryFlag name={match.home_team} side="home" />
-                    </div>
-                    {locked ? (
-                      <div className="flex items-center gap-2">
-                        {pred ? (
-                          <span className="font-bold tabular-nums text-sm">{pred.home_score_pred} × {pred.away_score_pred}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">— × —</span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <ScoreInput value={draft.home} onChange={v => setDraft(match.id, v, draft.away)} disabled={false} />
-                        <span className="text-muted-foreground text-xs mx-0.5">×</span>
-                        <ScoreInput value={draft.away} onChange={v => setDraft(match.id, draft.home, v)} disabled={false} />
-                      </div>
+        {(() => {
+          const renderCard = (match: Match, i: number) => {
+            const locked = isLocked(match);
+            const pred = predictions.get(match.id);
+            const score = scores.get(match.id);
+            const draft = getDraft(match.id);
+            const isProvisional = score?.is_provisional === true;
+            const displayPoints = score?.points ?? null;
+            const btnState = getButtonState(match.id);
+            return (
+              <div key={match.id} className="glass-card p-4 animate-reveal-up relative" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    {match.group_name.length === 1 ? `Grupo ${match.group_name}` : match.group_name} · {format(new Date(match.match_datetime), "dd MMM · HH:mm", { locale: ptBR })}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {!locked && (
+                      <CountdownTimer datetime={match.match_datetime} serverNow={serverNow} onExpired={handleTimerExpired} />
                     )}
-                    <div className="flex items-center gap-1 min-w-0">
-                      <CountryFlag name={match.away_team} side="away" />
-                      <p className="text-sm font-medium text-left" style={{ wordBreak: 'break-word' }}>{match.away_team}</p>
-                    </div>
+                    <MatchStatusBadge match={match} serverNow={serverNow} />
                   </div>
-
-                  {(match.is_started || match.is_finished) && match.home_score !== null && match.away_score !== null && (
-                    <div className="text-center mt-2">
-                      <span className="text-xs text-muted-foreground">Placar: </span>
-                      <span className="text-xs font-bold">{match.home_score} × {match.away_score}</span>
-                    </div>
-                  )}
-
-                  {displayPoints !== null && (
-                    <div className="text-center mt-2">
-                      <ScoreBadge points={displayPoints} isProvisional={isProvisional} />
-                    </div>
-                  )}
-
-                  {!locked && (
-                    <div className="mt-3">
-                      <Button size="sm" onClick={() => savePrediction(match)} disabled={saving === match.id || btnState.disabled}
-                        className={`w-full text-xs active:scale-[0.97] ${btnState.saved ? 'opacity-60' : ''}`}>
-                        {saving === match.id ? <Loader2 className="h-3 w-3 animate-spin" /> :
-                          btnState.saved ? <><Check className="h-3 w-3 mr-1" /> {btnState.label}</> : btnState.label}
-                      </Button>
-                    </div>
-                  )}
-
-                  {locked && (
-                    <ExpandablePredictions
-                      match={match}
-                      currentUserId={user?.id ?? ''}
-                      fetchMatchPredictions={fetchMatchPredictions}
-                      cachedEntries={matchPredictionsCache[match.id]}
-                      isLoading={!!loadingMatchPredictions[match.id]}
-                      positionByUser={positionByUser}
-                      sharedGroupsByUser={sharedGroupsByUser}
-                    />
-                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+                  <div className="flex items-center justify-end gap-1 min-w-0">
+                    <p className="text-sm font-medium text-right" style={{ wordBreak: 'break-word' }}>{match.home_team}</p>
+                    <CountryFlag name={match.home_team} side="home" />
+                  </div>
+                  {locked ? (
+                    <div className="flex items-center gap-2">
+                      {pred ? (
+                        <span className="font-bold tabular-nums text-sm">{pred.home_score_pred} × {pred.away_score_pred}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">— × —</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <ScoreInput value={draft.home} onChange={v => setDraft(match.id, v, draft.away)} disabled={false} />
+                      <span className="text-muted-foreground text-xs mx-0.5">×</span>
+                      <ScoreInput value={draft.away} onChange={v => setDraft(match.id, draft.home, v)} disabled={false} />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1 min-w-0">
+                    <CountryFlag name={match.away_team} side="away" />
+                    <p className="text-sm font-medium text-left" style={{ wordBreak: 'break-word' }}>{match.away_team}</p>
+                  </div>
+                </div>
+
+                {(match.is_started || match.is_finished) && match.home_score !== null && match.away_score !== null && (
+                  <div className="text-center mt-2">
+                    <span className="text-xs text-muted-foreground">Placar: </span>
+                    <span className="text-xs font-bold">{match.home_score} × {match.away_score}</span>
+                  </div>
+                )}
+
+                {displayPoints !== null && (
+                  <div className="text-center mt-2">
+                    <ScoreBadge points={displayPoints} isProvisional={isProvisional} />
+                  </div>
+                )}
+
+                {!locked && (
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => savePrediction(match)} disabled={saving === match.id || btnState.disabled}
+                      className={`w-full text-xs active:scale-[0.97] ${btnState.saved ? 'opacity-60' : ''}`}>
+                      {saving === match.id ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                        btnState.saved ? <><Check className="h-3 w-3 mr-1" /> {btnState.label}</> : btnState.label}
+                    </Button>
+                  </div>
+                )}
+
+                {locked && (
+                  <ExpandablePredictions
+                    match={match}
+                    currentUserId={user?.id ?? ''}
+                    fetchMatchPredictions={fetchMatchPredictions}
+                    cachedEntries={matchPredictionsCache[match.id]}
+                    isLoading={!!loadingMatchPredictions[match.id]}
+                    positionByUser={positionByUser}
+                    sharedGroupsByUser={sharedGroupsByUser}
+                  />
+                )}
+              </div>
+            );
+          };
+
+          if (filter === 'TODOS') {
+            if (filteredMatches.length === 0) {
+              return <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>;
+            }
+            return (
+              <div className="space-y-3">
+                {finishedAll.length > 0 && (
+                  <Collapsible open={openFinished} onOpenChange={setOpenFinished}>
+                    <CollapsibleTrigger className="glass-card w-full px-4 py-3 flex items-center justify-between text-sm font-medium active:scale-[0.99] transition-transform">
+                      <span>Encerrados ({finishedAll.length})</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${openFinished ? 'rotate-180' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 mt-3">
+                      {finishedAll.map((m, i) => renderCard(m, i))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+                {unfinishedAll.map((m, i) => renderCard(m, i))}
+              </div>
+            );
+          }
+
+          if (filteredMatches.length === 0) {
+            return <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>;
+          }
+          return (
+            <div className="space-y-3">
+              {filteredMatches.map((m, i) => renderCard(m, i))}
+            </div>
+          );
+        })()}
       </div>
       <FloatingRefreshButton onRefresh={handleManualRefresh} />
     </AppLayout>
