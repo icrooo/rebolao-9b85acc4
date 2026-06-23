@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getFlagUrl } from '@/lib/countryFlags';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 type Match = {
   id: string; home_team: string; away_team: string; match_datetime: string;
@@ -29,8 +30,8 @@ export type MatchPredictionEntry = {
 };
 
 const LOCK_MINUTES = 10;
-const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
-const FILTERS = ['PRÓXIMOS JOGOS', 'TODOS', 'MATA-MATA'] as const;
+
+const FILTERS = ['ONTEM', 'HOJE', 'AMANHÃ', 'TODOS'] as const;
 
 // Module-level cache for shared friendship groups (rarely changes).
 const sharedGroupsCache = new Map<string, { ts: number; map: Map<string, string[]> }>();
@@ -226,7 +227,8 @@ export default function PredictionsPage() {
   const [scores, setScores] = useState<Map<string, Score>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('PRÓXIMOS JOGOS');
+  const [filter, setFilter] = useState<string>('HOJE');
+  const [openFinished, setOpenFinished] = useState(false);
   const [drafts, setDrafts] = useState<Map<string, { home: number; away: number }>>(new Map());
   const [, forceUpdate] = useState(0);
 
@@ -377,33 +379,38 @@ export default function PredictionsPage() {
   const handleTimerExpired = useCallback(() => { forceUpdate(n => n + 1); }, []);
 
   const filteredMatches = useMemo(() => {
-    if (filter === 'PRÓXIMOS JOGOS') {
-      const now = serverNow();
-      const salvadorOffset = -3 * 60;
-      const salvadorMs = now + salvadorOffset * 60 * 1000;
-      const salvadorDate = new Date(salvadorMs);
-      const year = salvadorDate.getUTCFullYear();
-      const month = salvadorDate.getUTCMonth();
-      const day = salvadorDate.getUTCDate();
-      let cutoffUtc = new Date(Date.UTC(year, month, day, 7, 0, 0, 0));
-      if (now < cutoffUtc.getTime()) cutoffUtc = new Date(cutoffUtc.getTime() - 24 * 60 * 60 * 1000);
-      const nextCutoffUtc = new Date(cutoffUtc.getTime() + 24 * 60 * 60 * 1000);
-      const upcoming = matches
-        .filter(m => { const mt = new Date(m.match_datetime).getTime(); return mt >= cutoffUtc.getTime() && mt < nextCutoffUtc.getTime(); })
-        .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
-      if (upcoming.length === 0) {
-        return matches.filter(m => new Date(m.match_datetime).getTime() >= cutoffUtc.getTime())
-          .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime()).slice(0, 4);
-      }
-      return upcoming;
-    }
-    if (filter === 'MATA-MATA') {
-      return matches
-        .filter(m => KNOCKOUT_PHASES.includes(m.group_name))
-        .sort((a, b) => KNOCKOUT_PHASES.indexOf(a.group_name) - KNOCKOUT_PHASES.indexOf(b.group_name) || new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
-    }
-    return matches;
+    const sortChrono = (a: Match, b: Match) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime();
+    if (filter === 'TODOS') return [...matches].sort(sortChrono);
+
+    const now = serverNow();
+    const salvadorOffset = -3 * 60;
+    const salvadorDate = new Date(now + salvadorOffset * 60 * 1000);
+    const year = salvadorDate.getUTCFullYear();
+    const month = salvadorDate.getUTCMonth();
+    const day = salvadorDate.getUTCDate();
+    let cutoffHojeUtc = Date.UTC(year, month, day, 7, 0, 0, 0);
+    if (now < cutoffHojeUtc) cutoffHojeUtc -= 24 * 60 * 60 * 1000;
+    const DAY = 24 * 60 * 60 * 1000;
+    const cutoffOntemUtc = cutoffHojeUtc - DAY;
+    const cutoffAmanhaUtc = cutoffHojeUtc + DAY;
+    const cutoffDepoisUtc = cutoffHojeUtc + 2 * DAY;
+
+    let start = cutoffHojeUtc, end = cutoffAmanhaUtc;
+    if (filter === 'ONTEM') { start = cutoffOntemUtc; end = cutoffHojeUtc; }
+    else if (filter === 'AMANHÃ') { start = cutoffAmanhaUtc; end = cutoffDepoisUtc; }
+
+    return matches
+      .filter(m => { const mt = new Date(m.match_datetime).getTime(); return mt >= start && mt < end; })
+      .sort(sortChrono);
   }, [matches, filter, serverNow]);
+
+  const { finishedAll, unfinishedAll } = useMemo(() => {
+    if (filter !== 'TODOS') return { finishedAll: [] as Match[], unfinishedAll: [] as Match[] };
+    return {
+      finishedAll: filteredMatches.filter(m => m.is_finished),
+      unfinishedAll: filteredMatches.filter(m => !m.is_finished),
+    };
+  }, [filter, filteredMatches]);
 
   const getDraft = (matchId: string) => { const draft = drafts.get(matchId); const pred = predictions.get(matchId); return draft ?? (pred ? { home: pred.home_score_pred, away: pred.away_score_pred } : { home: 0, away: 0 }); };
   const setDraft = (matchId: string, home: number, away: number) => { setDrafts(prev => new Map(prev).set(matchId, { home, away })); };
@@ -465,98 +472,124 @@ export default function PredictionsPage() {
           ))}
         </div>
 
-        {filteredMatches.length === 0 ? (
-          <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMatches.map((match, i) => {
-              const locked = isLocked(match);
-              const pred = predictions.get(match.id);
-              const score = scores.get(match.id);
-              const draft = getDraft(match.id);
-              const isProvisional = score?.is_provisional === true;
-              const displayPoints = score?.points ?? null;
-              const btnState = getButtonState(match.id);
-
-              return (
-                <div key={match.id} className="glass-card p-4 animate-reveal-up relative" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      {match.group_name.length === 1 ? `Grupo ${match.group_name}` : match.group_name} · {format(new Date(match.match_datetime), "dd MMM · HH:mm", { locale: ptBR })}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {!locked && (
-                        <CountdownTimer datetime={match.match_datetime} serverNow={serverNow} onExpired={handleTimerExpired} />
-                      )}
-                      <MatchStatusBadge match={match} serverNow={serverNow} />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
-                    <div className="flex items-center justify-end gap-1 min-w-0">
-                      <p className="text-sm font-medium text-right" style={{ wordBreak: 'break-word' }}>{match.home_team}</p>
-                      <CountryFlag name={match.home_team} side="home" />
-                    </div>
-                    {locked ? (
-                      <div className="flex items-center gap-2">
-                        {pred ? (
-                          <span className="font-bold tabular-nums text-sm">{pred.home_score_pred} × {pred.away_score_pred}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">— × —</span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <ScoreInput value={draft.home} onChange={v => setDraft(match.id, v, draft.away)} disabled={false} />
-                        <span className="text-muted-foreground text-xs mx-0.5">×</span>
-                        <ScoreInput value={draft.away} onChange={v => setDraft(match.id, draft.home, v)} disabled={false} />
-                      </div>
+        {(() => {
+          const renderCard = (match: Match, i: number) => {
+            const locked = isLocked(match);
+            const pred = predictions.get(match.id);
+            const score = scores.get(match.id);
+            const draft = getDraft(match.id);
+            const isProvisional = score?.is_provisional === true;
+            const displayPoints = score?.points ?? null;
+            const btnState = getButtonState(match.id);
+            return (
+              <div key={match.id} className="glass-card p-4 animate-reveal-up relative" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    {match.group_name.length === 1 ? `Grupo ${match.group_name}` : match.group_name} · {format(new Date(match.match_datetime), "dd MMM · HH:mm", { locale: ptBR })}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {!locked && (
+                      <CountdownTimer datetime={match.match_datetime} serverNow={serverNow} onExpired={handleTimerExpired} />
                     )}
-                    <div className="flex items-center gap-1 min-w-0">
-                      <CountryFlag name={match.away_team} side="away" />
-                      <p className="text-sm font-medium text-left" style={{ wordBreak: 'break-word' }}>{match.away_team}</p>
-                    </div>
+                    <MatchStatusBadge match={match} serverNow={serverNow} />
                   </div>
-
-                  {(match.is_started || match.is_finished) && match.home_score !== null && match.away_score !== null && (
-                    <div className="text-center mt-2">
-                      <span className="text-xs text-muted-foreground">Placar: </span>
-                      <span className="text-xs font-bold">{match.home_score} × {match.away_score}</span>
-                    </div>
-                  )}
-
-                  {displayPoints !== null && (
-                    <div className="text-center mt-2">
-                      <ScoreBadge points={displayPoints} isProvisional={isProvisional} />
-                    </div>
-                  )}
-
-                  {!locked && (
-                    <div className="mt-3">
-                      <Button size="sm" onClick={() => savePrediction(match)} disabled={saving === match.id || btnState.disabled}
-                        className={`w-full text-xs active:scale-[0.97] ${btnState.saved ? 'opacity-60' : ''}`}>
-                        {saving === match.id ? <Loader2 className="h-3 w-3 animate-spin" /> :
-                          btnState.saved ? <><Check className="h-3 w-3 mr-1" /> {btnState.label}</> : btnState.label}
-                      </Button>
-                    </div>
-                  )}
-
-                  {locked && (
-                    <ExpandablePredictions
-                      match={match}
-                      currentUserId={user?.id ?? ''}
-                      fetchMatchPredictions={fetchMatchPredictions}
-                      cachedEntries={matchPredictionsCache[match.id]}
-                      isLoading={!!loadingMatchPredictions[match.id]}
-                      positionByUser={positionByUser}
-                      sharedGroupsByUser={sharedGroupsByUser}
-                    />
-                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+                  <div className="flex items-center justify-end gap-1 min-w-0">
+                    <p className="text-sm font-medium text-right" style={{ wordBreak: 'break-word' }}>{match.home_team}</p>
+                    <CountryFlag name={match.home_team} side="home" />
+                  </div>
+                  {locked ? (
+                    <div className="flex items-center gap-2">
+                      {pred ? (
+                        <span className="font-bold tabular-nums text-sm">{pred.home_score_pred} × {pred.away_score_pred}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">— × —</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <ScoreInput value={draft.home} onChange={v => setDraft(match.id, v, draft.away)} disabled={false} />
+                      <span className="text-muted-foreground text-xs mx-0.5">×</span>
+                      <ScoreInput value={draft.away} onChange={v => setDraft(match.id, draft.home, v)} disabled={false} />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1 min-w-0">
+                    <CountryFlag name={match.away_team} side="away" />
+                    <p className="text-sm font-medium text-left" style={{ wordBreak: 'break-word' }}>{match.away_team}</p>
+                  </div>
+                </div>
+
+                {(match.is_started || match.is_finished) && match.home_score !== null && match.away_score !== null && (
+                  <div className="text-center mt-2">
+                    <span className="text-xs text-muted-foreground">Placar: </span>
+                    <span className="text-xs font-bold">{match.home_score} × {match.away_score}</span>
+                  </div>
+                )}
+
+                {displayPoints !== null && (
+                  <div className="text-center mt-2">
+                    <ScoreBadge points={displayPoints} isProvisional={isProvisional} />
+                  </div>
+                )}
+
+                {!locked && (
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => savePrediction(match)} disabled={saving === match.id || btnState.disabled}
+                      className={`w-full text-xs active:scale-[0.97] ${btnState.saved ? 'opacity-60' : ''}`}>
+                      {saving === match.id ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                        btnState.saved ? <><Check className="h-3 w-3 mr-1" /> {btnState.label}</> : btnState.label}
+                    </Button>
+                  </div>
+                )}
+
+                {locked && (
+                  <ExpandablePredictions
+                    match={match}
+                    currentUserId={user?.id ?? ''}
+                    fetchMatchPredictions={fetchMatchPredictions}
+                    cachedEntries={matchPredictionsCache[match.id]}
+                    isLoading={!!loadingMatchPredictions[match.id]}
+                    positionByUser={positionByUser}
+                    sharedGroupsByUser={sharedGroupsByUser}
+                  />
+                )}
+              </div>
+            );
+          };
+
+          if (filter === 'TODOS') {
+            if (filteredMatches.length === 0) {
+              return <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>;
+            }
+            return (
+              <div className="space-y-3">
+                {finishedAll.length > 0 && (
+                  <Collapsible open={openFinished} onOpenChange={setOpenFinished}>
+                    <CollapsibleTrigger className="glass-card w-full px-4 py-3 flex items-center justify-between text-sm font-medium active:scale-[0.99] transition-transform">
+                      <span>Encerrados ({finishedAll.length})</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${openFinished ? 'rotate-180' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 mt-3">
+                      {finishedAll.map((m, i) => renderCard(m, i))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+                {unfinishedAll.map((m, i) => renderCard(m, i))}
+              </div>
+            );
+          }
+
+          if (filteredMatches.length === 0) {
+            return <div className="glass-card p-8 text-center"><p className="text-muted-foreground text-sm">Nenhum jogo neste filtro</p></div>;
+          }
+          return (
+            <div className="space-y-3">
+              {filteredMatches.map((m, i) => renderCard(m, i))}
+            </div>
+          );
+        })()}
       </div>
       <FloatingRefreshButton onRefresh={handleManualRefresh} />
     </AppLayout>

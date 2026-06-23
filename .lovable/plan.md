@@ -1,28 +1,40 @@
 ## Objetivo
-Na aba **Jogos** do `/admin`, reorganizar a lista para que jogos encerrados fiquem dentro de um `Collapsible` recolhido por padrão, posicionado **acima** dos jogos em andamento/futuros. Eliminar a lógica atual que puxa jogos em andamento para o topo.
+Substituir os filtros atuais de `/predictions` (`PRÓXIMOS JOGOS`, `TODOS`, `MATA-MATA`) por: `ONTEM`, `HOJE`, `AMANHÃ`, `TODOS`, com `HOJE` selecionado por padrão e considerando a hora de corte de 4h da manhã de Salvador (UTC-3, ou seja, 7h UTC). Em `TODOS`, agrupar todos os jogos já encerrados em um `Collapsible` recolhido por padrão, no mesmo estilo do `/admin`.
 
-## Alterações
+## Alterações em `src/pages/PredictionsPage.tsx`
 
-### `src/pages/AdminPage.tsx`
+1. **Constante de filtros** (linha 33): trocar para
+   ```ts
+   const FILTERS = ['ONTEM', 'HOJE', 'AMANHÃ', 'TODOS'] as const;
+   ```
+   Remover `MATA-MATA` e referências a `KNOCKOUT_PHASES` dentro do filtro (manter o import se ainda usado em outro lugar; remover se ficar órfão).
 
-1. **Separar os jogos em 3 grupos** via `useMemo`:
-   - `finishedMatches`: `is_finished === true`
-   - `activeMatches`: `is_started === true && is_finished === false`
-   - `upcomingMatches`: `!is_started`
+2. **Estado inicial** (linha 229): `useState<string>('HOJE')`.
 
-2. **Remover o `sortedMatches` atual** (linhas 234-241) que prioriza jogos em andamento no topo. Substitui-lo por ordenação puramente cronológica dentro de cada grupo.
+3. **Lógica de janela diária de Salvador** — extrair em helper local dentro do `useMemo`:
+   - Calcular `cutoffHojeUtc` = 07:00 UTC do dia corrente de Salvador (mesmo cálculo já existente nas linhas 381-389).
+   - Derivar:
+     - `cutoffOntemUtc = cutoffHojeUtc - 24h`
+     - `cutoffAmanhaUtc = cutoffHojeUtc + 24h`
+     - `cutoffDepoisUtc = cutoffHojeUtc + 48h`
 
-3. **Inserir um `Collapsible`** (importar de `@/components/ui/collapsible`) **acima** do mapeamento de jogos ativos/futuros. O conteúdo desse Collapsible é a lista de `finishedMatches`.
-   - O trigger deve exibir um título estilizado como "Encerrados (N)" com um indicador de expandir/recolher.
-   - Estado `openFinished` iniciado como `false` (recolhido por padrão).
-   - Manter o mesmo estilo de card (`glass-card p-4`) dentro do Collapsible.
+4. **`filteredMatches`** (linhas 379-406):
+   - `HOJE`: jogos com `match_datetime` em `[cutoffHojeUtc, cutoffAmanhaUtc)`, ordem cronológica. Remover o fallback atual de "se vazio, mostrar próximos 4" — `HOJE` deve mostrar somente os de hoje (vazio → estado vazio).
+   - `ONTEM`: `[cutoffOntemUtc, cutoffHojeUtc)`, ordem cronológica.
+   - `AMANHÃ`: `[cutoffAmanhaUtc, cutoffDepoisUtc)`, ordem cronológica.
+   - `TODOS`: todos os jogos em ordem cronológica (mantém comportamento atual). O agrupamento finalizado/não-finalizado é feito na renderização (passo 5), não aqui.
 
-4. **Renderizar jogos em andamento + futuros** logo abaixo do Collapsible, em ordem cronológica (mais próximos primeiro), sem pular para o topo. Manter o card e comportamento atuais (botões de placar, iniciar, encerrar, reiniciar, editar).
+5. **Renderização de `TODOS` com Collapsible para encerrados** (bloco de map em ~linha 468-472):
+   - Quando `filter === 'TODOS'`, dividir `filteredMatches` em:
+     - `finishedAll`: `is_finished === true`, ordenados cronologicamente (mais antigo primeiro, igual a hoje — mantém previsibilidade da lista).
+     - `unfinishedAll`: restantes, em ordem cronológica.
+   - Renderizar primeiro um `<Collapsible open={openFinished} onOpenChange={setOpenFinished}>` (estado novo `openFinished`, default `false`) com trigger estilizado tipo "Encerrados (N)" + `ChevronDown` rotacionando, no mesmo padrão do `/admin`. Conteúdo: lista de `finishedAll` usando o mesmo card de match já em uso.
+   - Em seguida, renderizar `unfinishedAll` normalmente abaixo.
+   - Para os demais filtros (`ONTEM`/`HOJE`/`AMANHÃ`), manter renderização linear atual (sem Collapsible), pois são janelas curtas.
 
-5. **Limpar**: o estado e a função `sortedMatches` que reordenam ao iniciar um jogo se tornam desnecessários — a lista permanece em ordem cronológica estável.
+6. **Imports**: adicionar `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` de `@/components/ui/collapsible` e `ChevronDown` de `lucide-react`, se ainda não importados.
 
-## Detalhes técnicos
-- O componente `Collapsible` já existe em `src/components/ui/collapsible.tsx` (Radix UI).
-- Estilo do trigger: usar `glass-card` ou um header semelhante ao restante do app, com `ChevronDown` que rotaciona conforme estado.
-- Nenhuma mudança de backend ou banco de dados.
-- Nenhum impacto na aba de usuários.
+## Observações
+- Hora de corte de 4h Salvador = 07:00 UTC (UTC-3, sem DST). O cálculo atual já está correto e será reaproveitado como base para derivar ontem/hoje/amanhã.
+- Nenhuma mudança em backend, scoring, ou outras páginas.
+- Memória `mem://features/predictions-filters` precisará ser atualizada após a implementação (na fase de build) para refletir os novos filtros.
