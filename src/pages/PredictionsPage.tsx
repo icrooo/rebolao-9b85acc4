@@ -30,7 +30,7 @@ export type MatchPredictionEntry = {
 };
 
 const LOCK_MINUTES = 10;
-const KNOCKOUT_PHASES = ['16-AVOS', 'OITAVAS', 'QUARTAS', 'SEMI', '3º e 4º', 'FINAL'];
+
 const FILTERS = ['ONTEM', 'HOJE', 'AMANHÃ', 'TODOS'] as const;
 
 // Module-level cache for shared friendship groups (rarely changes).
