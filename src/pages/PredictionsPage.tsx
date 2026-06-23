@@ -226,7 +226,8 @@ export default function PredictionsPage() {
   const [scores, setScores] = useState<Map<string, Score>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('PRÓXIMOS JOGOS');
+  const [filter, setFilter] = useState<string>('HOJE');
+  const [openFinished, setOpenFinished] = useState(false);
   const [drafts, setDrafts] = useState<Map<string, { home: number; away: number }>>(new Map());
   const [, forceUpdate] = useState(0);
 
