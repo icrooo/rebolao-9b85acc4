@@ -378,33 +378,38 @@ export default function PredictionsPage() {
   const handleTimerExpired = useCallback(() => { forceUpdate(n => n + 1); }, []);
 
   const filteredMatches = useMemo(() => {
-    if (filter === 'PRÓXIMOS JOGOS') {
-      const now = serverNow();
-      const salvadorOffset = -3 * 60;
-      const salvadorMs = now + salvadorOffset * 60 * 1000;
-      const salvadorDate = new Date(salvadorMs);
-      const year = salvadorDate.getUTCFullYear();
-      const month = salvadorDate.getUTCMonth();
-      const day = salvadorDate.getUTCDate();
-      let cutoffUtc = new Date(Date.UTC(year, month, day, 7, 0, 0, 0));
-      if (now < cutoffUtc.getTime()) cutoffUtc = new Date(cutoffUtc.getTime() - 24 * 60 * 60 * 1000);
-      const nextCutoffUtc = new Date(cutoffUtc.getTime() + 24 * 60 * 60 * 1000);
-      const upcoming = matches
-        .filter(m => { const mt = new Date(m.match_datetime).getTime(); return mt >= cutoffUtc.getTime() && mt < nextCutoffUtc.getTime(); })
-        .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
-      if (upcoming.length === 0) {
-        return matches.filter(m => new Date(m.match_datetime).getTime() >= cutoffUtc.getTime())
-          .sort((a, b) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime()).slice(0, 4);
-      }
-      return upcoming;
-    }
-    if (filter === 'MATA-MATA') {
-      return matches
-        .filter(m => KNOCKOUT_PHASES.includes(m.group_name))
-        .sort((a, b) => KNOCKOUT_PHASES.indexOf(a.group_name) - KNOCKOUT_PHASES.indexOf(b.group_name) || new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime());
-    }
-    return matches;
+    const sortChrono = (a: Match, b: Match) => new Date(a.match_datetime).getTime() - new Date(b.match_datetime).getTime();
+    if (filter === 'TODOS') return [...matches].sort(sortChrono);
+
+    const now = serverNow();
+    const salvadorOffset = -3 * 60;
+    const salvadorDate = new Date(now + salvadorOffset * 60 * 1000);
+    const year = salvadorDate.getUTCFullYear();
+    const month = salvadorDate.getUTCMonth();
+    const day = salvadorDate.getUTCDate();
+    let cutoffHojeUtc = Date.UTC(year, month, day, 7, 0, 0, 0);
+    if (now < cutoffHojeUtc) cutoffHojeUtc -= 24 * 60 * 60 * 1000;
+    const DAY = 24 * 60 * 60 * 1000;
+    const cutoffOntemUtc = cutoffHojeUtc - DAY;
+    const cutoffAmanhaUtc = cutoffHojeUtc + DAY;
+    const cutoffDepoisUtc = cutoffHojeUtc + 2 * DAY;
+
+    let start = cutoffHojeUtc, end = cutoffAmanhaUtc;
+    if (filter === 'ONTEM') { start = cutoffOntemUtc; end = cutoffHojeUtc; }
+    else if (filter === 'AMANHÃ') { start = cutoffAmanhaUtc; end = cutoffDepoisUtc; }
+
+    return matches
+      .filter(m => { const mt = new Date(m.match_datetime).getTime(); return mt >= start && mt < end; })
+      .sort(sortChrono);
   }, [matches, filter, serverNow]);
+
+  const { finishedAll, unfinishedAll } = useMemo(() => {
+    if (filter !== 'TODOS') return { finishedAll: [] as Match[], unfinishedAll: [] as Match[] };
+    return {
+      finishedAll: filteredMatches.filter(m => m.is_finished),
+      unfinishedAll: filteredMatches.filter(m => !m.is_finished),
+    };
+  }, [filter, filteredMatches]);
 
   const getDraft = (matchId: string) => { const draft = drafts.get(matchId); const pred = predictions.get(matchId); return draft ?? (pred ? { home: pred.home_score_pred, away: pred.away_score_pred } : { home: 0, away: 0 }); };
   const setDraft = (matchId: string, home: number, away: number) => { setDrafts(prev => new Map(prev).set(matchId, { home, away })); };
