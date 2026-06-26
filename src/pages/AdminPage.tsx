@@ -428,9 +428,23 @@ export default function AdminPage() {
 
         {tab === 'matches' && (
           <div className="space-y-3">
-            <Button size="sm" onClick={() => setShowAddMatch(!showAddMatch)} className="active:scale-95">
-              <Plus className="h-4 w-4 mr-1" /> Adicionar jogo
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => setShowAddMatch(!showAddMatch)} className="active:scale-95">
+                <Plus className="h-4 w-4 mr-1" /> Adicionar jogo
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopyMissingToday}
+                disabled={copyingMissing}
+                className="active:scale-95"
+              >
+                {copyingMissing
+                  ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  : <Copy className="h-4 w-4 mr-1" />}
+                Copiar faltantes de hoje
+              </Button>
+            </div>
 
             {showAddMatch && (
               <div className="glass-card p-4 space-y-3 animate-reveal-up">
