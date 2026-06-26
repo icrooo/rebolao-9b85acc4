@@ -38,6 +38,76 @@ export default function AdminPage() {
   const [showAddMatch, setShowAddMatch] = useState(false);
   const [newMatch, setNewMatch] = useState({ home_team: '', away_team: '', match_datetime: '', group_name: '' });
   const [finishingMatch, setFinishingMatch] = useState<string | null>(null);
+  const [copyingMissing, setCopyingMissing] = useState(false);
+
+  const handleCopyMissingToday = async () => {
+    if (copyingMissing) return;
+    setCopyingMissing(true);
+    try {
+      // Janela "HOJE" = 4h Salvador (07:00 UTC) até 4h do dia seguinte.
+      const now = new Date();
+      const cutoffHojeUtc = new Date(Date.UTC(
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 7, 0, 0, 0,
+      ));
+      if (now.getTime() < cutoffHojeUtc.getTime()) {
+        cutoffHojeUtc.setUTCDate(cutoffHojeUtc.getUTCDate() - 1);
+      }
+      const cutoffAmanhaUtc = new Date(cutoffHojeUtc.getTime() + 24 * 60 * 60 * 1000);
+
+      const todaysMatches = matches.filter(m => {
+        const t = new Date(m.match_datetime).getTime();
+        return t >= cutoffHojeUtc.getTime() && t < cutoffAmanhaUtc.getTime();
+      });
+
+      if (todaysMatches.length === 0) {
+        toast.message('Nenhum jogo previsto para hoje.');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('user_id, match_id')
+        .in('match_id', todaysMatches.map(m => m.id));
+
+      if (error) {
+        toast.error('Erro ao buscar palpites.');
+        return;
+      }
+
+      const predictedByUser = new Map<string, Set<string>>();
+      (data ?? []).forEach(row => {
+        if (!predictedByUser.has(row.user_id)) predictedByUser.set(row.user_id, new Set());
+        predictedByUser.get(row.user_id)!.add(row.match_id);
+      });
+
+      const approved = profiles.filter(p => p.is_approved);
+      const missing = approved
+        .map(p => ({
+          name: p.name,
+          count: todaysMatches.length - (predictedByUser.get(p.user_id)?.size ?? 0),
+        }))
+        .filter(x => x.count >= 1)
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pt-BR'));
+
+      if (missing.length === 0) {
+        toast.success('Todo mundo já palpitou nos jogos de hoje 🎉');
+        return;
+      }
+
+      const text =
+        `Faltam palpites para hoje (${todaysMatches.length} jogo${todaysMatches.length > 1 ? 's' : ''}):\n` +
+        missing.map(m => `- ${m.name} (${m.count})`).join('\n');
+
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(`Copiado! ${missing.length} pessoa${missing.length > 1 ? 's' : ''} faltando palpitar.`);
+      } catch {
+        toast.error('Não foi possível copiar. Tente novamente.');
+      }
+    } finally {
+      setCopyingMissing(false);
+    }
+  };
   const [confirmFinish, setConfirmFinish] = useState<string | null>(null);
   const [confirmRestart, setConfirmRestart] = useState<string | null>(null);
   const [startingMatch, setStartingMatch] = useState<string | null>(null);
