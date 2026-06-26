@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, Plus, Trophy, Trash2, Pencil, X, Play, Minus, Check, RotateCcw, ChevronDown } from 'lucide-react';
+import { Loader2, Plus, Trophy, Trash2, Pencil, X, Play, Minus, Check, RotateCcw, ChevronDown, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
