@@ -1,40 +1,55 @@
-## Objetivo
-Substituir os filtros atuais de `/predictions` (`PRÓXIMOS JOGOS`, `TODOS`, `MATA-MATA`) por: `ONTEM`, `HOJE`, `AMANHÃ`, `TODOS`, com `HOJE` selecionado por padrão e considerando a hora de corte de 4h da manhã de Salvador (UTC-3, ou seja, 7h UTC). Em `TODOS`, agrupar todos os jogos já encerrados em um `Collapsible` recolhido por padrão, no mesmo estilo do `/admin`.
+## Botão "Copiar faltantes de hoje" em /admin
 
-## Alterações em `src/pages/PredictionsPage.tsx`
+Adicionar ao lado de "+ Adicionar jogo", mesma altura, um botão que copia para a área de transferência a lista de usuários aprovados que ainda **não** preencheram 1+ palpites dos jogos de hoje (janela 4h Salvador → 4h do dia seguinte). Cada nome vem com a quantidade de jogos faltantes entre parênteses.
 
-1. **Constante de filtros** (linha 33): trocar para
-   ```ts
-   const FILTERS = ['ONTEM', 'HOJE', 'AMANHÃ', 'TODOS'] as const;
-   ```
-   Remover `MATA-MATA` e referências a `KNOCKOUT_PHASES` dentro do filtro (manter o import se ainda usado em outro lugar; remover se ficar órfão).
+### Avaliação de I/O (resumo)
 
-2. **Estado inicial** (linha 229): `useState<string>('HOJE')`.
+- Roda **só no clique**, sem polling/realtime/subscription.
+- 1 única query: `predictions` filtrado por `match_id in (<=4 ids de hoje)` → ~200 linhas no pior caso.
+- `profiles` aprovados e `matches` reaproveitados do estado já carregado da página.
+- Impacto desprezível frente ao que `/admin` já faz em mount. Sem risco de gargalo futuro.
 
-3. **Lógica de janela diária de Salvador** — extrair em helper local dentro do `useMemo`:
-   - Calcular `cutoffHojeUtc` = 07:00 UTC do dia corrente de Salvador (mesmo cálculo já existente nas linhas 381-389).
-   - Derivar:
-     - `cutoffOntemUtc = cutoffHojeUtc - 24h`
-     - `cutoffAmanhaUtc = cutoffHojeUtc + 24h`
-     - `cutoffDepoisUtc = cutoffHojeUtc + 48h`
+### Formato do texto copiado
 
-4. **`filteredMatches`** (linhas 379-406):
-   - `HOJE`: jogos com `match_datetime` em `[cutoffHojeUtc, cutoffAmanhaUtc)`, ordem cronológica. Remover o fallback atual de "se vazio, mostrar próximos 4" — `HOJE` deve mostrar somente os de hoje (vazio → estado vazio).
-   - `ONTEM`: `[cutoffOntemUtc, cutoffHojeUtc)`, ordem cronológica.
-   - `AMANHÃ`: `[cutoffAmanhaUtc, cutoffDepoisUtc)`, ordem cronológica.
-   - `TODOS`: todos os jogos em ordem cronológica (mantém comportamento atual). O agrupamento finalizado/não-finalizado é feito na renderização (passo 5), não aqui.
+```
+Faltam palpites para hoje (3 jogos):
+- Fulano (3)
+- Beltrano (2)
+- Ciclano (1)
+```
 
-5. **Renderização de `TODOS` com Collapsible para encerrados** (bloco de map em ~linha 468-472):
-   - Quando `filter === 'TODOS'`, dividir `filteredMatches` em:
-     - `finishedAll`: `is_finished === true`, ordenados cronologicamente (mais antigo primeiro, igual a hoje — mantém previsibilidade da lista).
-     - `unfinishedAll`: restantes, em ordem cronológica.
-   - Renderizar primeiro um `<Collapsible open={openFinished} onOpenChange={setOpenFinished}>` (estado novo `openFinished`, default `false`) com trigger estilizado tipo "Encerrados (N)" + `ChevronDown` rotacionando, no mesmo padrão do `/admin`. Conteúdo: lista de `finishedAll` usando o mesmo card de match já em uso.
-   - Em seguida, renderizar `unfinishedAll` normalmente abaixo.
-   - Para os demais filtros (`ONTEM`/`HOJE`/`AMANHÃ`), manter renderização linear atual (sem Collapsible), pois são janelas curtas.
+Se a lista vier vazia: nada é copiado; toast "Todo mundo já palpitou nos jogos de hoje 🎉".
 
-6. **Imports**: adicionar `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` de `@/components/ui/collapsible` e `ChevronDown` de `lucide-react`, se ainda não importados.
+### Alterações em `src/pages/AdminPage.tsx` (somente frontend)
 
-## Observações
-- Hora de corte de 4h Salvador = 07:00 UTC (UTC-3, sem DST). O cálculo atual já está correto e será reaproveitado como base para derivar ontem/hoje/amanhã.
-- Nenhuma mudança em backend, scoring, ou outras páginas.
-- Memória `mem://features/predictions-filters` precisará ser atualizada após a implementação (na fase de build) para refletir os novos filtros.
+1. **Imports**: `Copy` de `lucide-react`; `useToast` (se ainda não estiver).
+
+2. **Botão novo** na mesma linha flex do "+ Adicionar jogo":
+   - `variant="outline"`, ícone `Copy`, texto "Copiar faltantes de hoje".
+   - Estado local `copying: boolean` desabilita durante a operação para evitar cliques múltiplos.
+   - Em telas estreitas, o container já existente faz wrap natural.
+
+3. **Handler `handleCopyMissingToday`**:
+   - Calcula `cutoffHojeUtc` (07:00 UTC; recua 24h se `now < 07:00 UTC`) e `cutoffAmanhaUtc = cutoffHojeUtc + 24h` — mesma lógica do filtro HOJE em `PredictionsPage` (memória `predictions-filters`).
+   - Filtra `matches` (estado existente) para `match_datetime ∈ [cutoffHojeUtc, cutoffAmanhaUtc)` → `todaysMatches`.
+   - Se `todaysMatches.length === 0` → toast "Nenhum jogo previsto para hoje." e retorna.
+   - Query única:
+     ```ts
+     supabase.from('predictions')
+       .select('user_id, match_id')
+       .in('match_id', todaysMatches.map(m => m.id));
+     ```
+   - Constrói `Map<user_id, Set<match_id>>` com quem palpitou.
+   - Para cada profile aprovado já em memória, calcula `missingCount = todaysMatches.length - palpitadosNoDia`. Mantém quem tem `missingCount >= 1`.
+   - Ordena por `missingCount desc`, depois `name asc`.
+   - Monta o texto no formato acima e chama `navigator.clipboard.writeText(...)`.
+   - Toast: "Copiado! N pessoa(s) faltando palpitar." ou erro genérico se a clipboard falhar.
+
+4. **Fallback de clipboard**: em contexto sem `navigator.clipboard` (raro em HTTPS moderno), mostrar toast de erro pedindo para tentar de novo. Sem `document.execCommand` legacy.
+
+### Fora de escopo
+
+- Sem mudanças no banco, RLS, funções ou edge functions.
+- Sem RPC dedicada (desnecessária dado o volume).
+- Sem integração direta com WhatsApp.
+- Sem histórico/log de quem foi alertado.
