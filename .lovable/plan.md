@@ -1,55 +1,47 @@
-## Botão "Copiar faltantes de hoje" em /admin
+# Correções de segurança — plano
 
-Adicionar ao lado de "+ Adicionar jogo", mesma altura, um botão que copia para a área de transferência a lista de usuários aprovados que ainda **não** preencheram 1+ palpites dos jogos de hoje (janela 4h Salvador → 4h do dia seguinte). Cada nome vem com a quantidade de jogos faltantes entre parênteses.
+Objetivo: fechar os 9 issues restantes (sem ligar HIBP) sem quebrar nada da experiência atual, e mantendo você como admin.
 
-### Avaliação de I/O (resumo)
+## O que muda para o usuário
+Nada visível. Todas as mudanças são no backend (permissões e políticas). Fluxos afetados:
+- Login/aprovação: idêntico.
+- Ranking, palpites, /all-predictions, /admin: idênticos.
+- Você continua admin (o guard é `has_role(auth.uid(), 'admin')`, que lê `user_roles` — nada muda nessa tabela).
 
-- Roda **só no clique**, sem polling/realtime/subscription.
-- 1 única query: `predictions` filtrado por `match_id in (<=4 ids de hoje)` → ~200 linhas no pior caso.
-- `profiles` aprovados e `matches` reaproveitados do estado já carregado da página.
-- Impacto desprezível frente ao que `/admin` já faz em mount. Sem risco de gargalo futuro.
+## Bloco A — Migration única (SQL)
 
-### Formato do texto copiado
-
+### 1. `refresh_ranking_state()` — bloquear chamada direta pelo cliente
+```sql
+REVOKE EXECUTE ON FUNCTION public.refresh_ranking_state() FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.refresh_ranking_state() TO service_role;
 ```
-Faltam palpites para hoje (3 jogos):
-- Fulano (3)
-- Beltrano (2)
-- Ciclano (1)
+Por que não quebra: só é chamada por outras funções `SECURITY DEFINER` (admin_start_match, admin_finish_match, admin_adjust_score, admin_restart_match, admin_approve_user, admin_unapprove_user). Funções SECURITY DEFINER executam com privilégios do owner (postgres) → continuam podendo chamar. Nenhum código do frontend chama diretamente.
+
+### 2. Esconder `profiles.email` do cliente (coluna-nível, mantém RLS atual)
+```sql
+REVOKE SELECT (email) ON public.profiles FROM anon, authenticated;
 ```
+Por que não quebra: varredura no código (`rg`) confirma que nenhuma tela lê `email` via `from('profiles')`. `/admin` lê email pela RPC `admin_get_profiles` (SECURITY DEFINER, gated por admin) — continua funcionando. AuthContext seleciona só `user_id, name, is_approved`. AllPredictions/Home/Predictions selecionam só `user_id, name`.
 
-Se a lista vier vazia: nada é copiado; toast "Todo mundo já palpitou nos jogos de hoje 🎉".
+### 3. Reforçar `search_path` em funções sinalizadas pelo linter
+Rodar `supabase--linter` após a migration. Para qualquer função apontada sem `SET search_path`, aplicar `ALTER FUNCTION public.<fn>(<args>) SET search_path = 'public';`. As funções mostradas em contexto já têm — o linter dirá se sobra alguma. Zero impacto funcional.
 
-### Alterações em `src/pages/AdminPage.tsx` (somente frontend)
+### 4. Verificação pós-migration
+- `SELECT has_function_privilege('authenticated','public.refresh_ranking_state()','EXECUTE');` → `false`.
+- `SELECT has_column_privilege('authenticated','public.profiles','email','SELECT');` → `false`.
+- Testar no preview: abrir /ranking, /predictions, /all-predictions e /admin. Todas devem carregar normalmente.
 
-1. **Imports**: `Copy` de `lucide-react`; `useToast` (se ainda não estiver).
+## Bloco B — Findings marcados como não aplicáveis
+Via `security--manage_security_finding` + `security--update_memory` (para não voltarem em scans futuros):
 
-2. **Botão novo** na mesma linha flex do "+ Adicionar jogo":
-   - `variant="outline"`, ícone `Copy`, texto "Copiar faltantes de hoje".
-   - Estado local `copying: boolean` desabilita durante a operação para evitar cliques múltiplos.
-   - Em telas estreitas, o container já existente faz wrap natural.
+- **`server-time` edge function pública**: já valida JWT via `getClaims` no início do handler (linhas 14–35 do `supabase/functions/server-time/index.ts`). Não há dado sensível no response (só um `now` ISO). Motivo do ignore: proteção já existe.
+- **`realtime.messages` acessível**: o app não usa Realtime Broadcast/Presence — só Postgres Changes (que passam por RLS das tabelas). Motivo do ignore: superfície não utilizada.
 
-3. **Handler `handleCopyMissingToday`**:
-   - Calcula `cutoffHojeUtc` (07:00 UTC; recua 24h se `now < 07:00 UTC`) e `cutoffAmanhaUtc = cutoffHojeUtc + 24h` — mesma lógica do filtro HOJE em `PredictionsPage` (memória `predictions-filters`).
-   - Filtra `matches` (estado existente) para `match_datetime ∈ [cutoffHojeUtc, cutoffAmanhaUtc)` → `todaysMatches`.
-   - Se `todaysMatches.length === 0` → toast "Nenhum jogo previsto para hoje." e retorna.
-   - Query única:
-     ```ts
-     supabase.from('predictions')
-       .select('user_id, match_id')
-       .in('match_id', todaysMatches.map(m => m.id));
-     ```
-   - Constrói `Map<user_id, Set<match_id>>` com quem palpitou.
-   - Para cada profile aprovado já em memória, calcula `missingCount = todaysMatches.length - palpitadosNoDia`. Mantém quem tem `missingCount >= 1`.
-   - Ordena por `missingCount desc`, depois `name asc`.
-   - Monta o texto no formato acima e chama `navigator.clipboard.writeText(...)`.
-   - Toast: "Copiado! N pessoa(s) faltando palpitar." ou erro genérico se a clipboard falhar.
+## Não incluído (por sua instrução)
+- Leaked Password Protection (HIBP) — fica desligado.
 
-4. **Fallback de clipboard**: em contexto sem `navigator.clipboard` (raro em HTTPS moderno), mostrar toast de erro pedindo para tentar de novo. Sem `document.execCommand` legacy.
-
-### Fora de escopo
-
-- Sem mudanças no banco, RLS, funções ou edge functions.
-- Sem RPC dedicada (desnecessária dado o volume).
-- Sem integração direta com WhatsApp.
-- Sem histórico/log de quem foi alertado.
+## Ordem de execução
+1. Migration do Bloco A.
+2. Rodar linter; se restar função sem `search_path`, migration curta de follow-up.
+3. Marcar os 2 findings do Bloco B como ignorados + atualizar security memory.
+4. Reportar contagem final de issues.
